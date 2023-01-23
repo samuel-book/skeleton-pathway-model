@@ -6,8 +6,9 @@ temp/
 # Ignore PyCharm files
 .idea
 
-# Ignore all checkpoints folders
+# Ignore all temp folders
 **/.ipynb_checkpoints/
+**/__pycache__
 
 
 
