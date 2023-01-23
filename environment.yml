@@ -1,0 +1,16 @@
+name: simpy
+channels:
+  - defaults
+dependencies:
+  - joblib
+  - jupyter
+  - jupyterlab
+  - matplotlib
+  - numpy
+  - pandas
+  - pip
+  - pytest
+  - python=3.10  
+  - pip:
+    - simpy==4.0
+
