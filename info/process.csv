@@ -1,0 +1,16 @@
+Step #,Stage,Step,Resources,Time,Notes
+1,Pre-hospital,Stroke onset,None,Exp (man time between strokes),
+2,Pre-hospital,Call for ambo,None,Uniform (0-20),Placeholder time
+3,Pre-hospital,Ambo dispatch,Optional MSU,Uniform (0-20),Placeholder time
+4,Pre-hospital,Ambo travel,Optional MSU,"Normal (mean 15, SD 5)",Placeholder time
+5,Pre-hospital,Minimum assessment,Optional MSU,Uniform (10-20),Placeholder time
+6,Pre-hospital,Optional triage/diagnostic,None,Uniform (15-20),Placeholder time
+7,Pre-hospital,Optional MSU (scan/IVT/triage for MT),Optional MSU,Uniform (20-30),Placeholder time
+8,Pre-hospital,Travel to hospital,Optional MSU,Lookup based on LSOA,
+9,Hospital (to MT),Hospital assessment/scan,None,Uniform (10-30),Placeholder time
+10,Hospital (to IVT),Determine onset,None,Fixed (0),Placeholder time
+11,Hospital (to IVT),Decision for IVT/MT,None,,Placeholder time
+12,Hospital (to IVT),IVT,None,,Placeholder time
+13,Transfer,Optional transfer for MT,None,Lookup,Placeholder time
+14,Hospital (to IVT),MT,None,,Placeholder time
+15,Outcome,Predict outcome,None,,
