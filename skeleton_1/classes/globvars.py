@@ -9,7 +9,7 @@ class Globvars(object):
     -----------
 
     hospitals:
-        Info on stroke hospitals (Pandas DataFrame)
+        Info on stroke hospitals. Pandas DataFrame.
 
     inter_arrival_time:
         Time (minutes) between arrivals. Decimal.
@@ -24,28 +24,31 @@ class Globvars(object):
         Relative frequency of admissions to each LSOA (sums to 1). NumPy array.
 
     lsoa_ivt_travel_time:
-        Travel time (minutes) from LSOA to closest IVT unit. Pandas series.
+        Travel time (minutes) from LSOA to closest IVT unit. Dictionary.
 
     lsoa_ivt_unit:
-        Closest IVT unit postcode for each LSOA. Pandas series.
+        Closest IVT unit postcode for each LSOA. Dictionary.
 
     lsoa_mt_travel_time:
-        Travel time (minutes) from LSOA to closest MT unit. Pandas series.
+        Travel time (minutes) from LSOA to closest MT unit. Dictionary.
 
     lsoa_mt_unit:
-        Closest MT unit postcode for each LSOA. Pandas series.
+        Closest MT unit postcode for each LSOA. Dictionary.
 
     mt_transfer_time:
-        Time (minutes) for closest IVT to MT transfer. Pandas series.
+        Time (minutes) for closest IVT to MT transfer. Dictionary.
 
     mt_transfer_unit:
-        Closest MT unit for each IVT unit.  Pandas series.
+        Closest MT unit for each IVT unit.  Dictionary.
     
+    process_time_ambulance_response:
+        Min/max of time from 999 call to ambulance arrival (tuple of integers)
+
     run_duration:
         Simulation run time (minutes, including warm-up). Integer.
 
     total_admissions:
-        Total yearly admissions (obtained from LSOA admissions)
+        Total yearly admissions (obtained from LSOA admissions). Float.
     
     warm_up:
         Simulation run time (minutes) before audit starts.
@@ -67,6 +70,10 @@ class Globvars(object):
 
         # Load data
         self.load_data()
+
+        # Set process times
+        self.process_time_ambulance_response = (10, 40)
+        self.process_time_call_ambulance = (5, 60)
 
         # Overwrite default values (can take named arguments or a dictionary)
         
@@ -108,6 +115,8 @@ class Globvars(object):
             np.array(admissions['Admissions'] / self.total_admissions)
         self.lsoa_names = list(admissions['area'])
 
+        self.inter_arrival_time = (365 * 24 * 60) / self.total_admissions
+
         # Load and parse hospital data
         hospitals = pd.read_csv('./data/stroke_hospitals_2022.csv')
         hospitals['Use'] = hospitals[['Use_IVT', 'Use_MT']].max(axis=1)
@@ -123,12 +132,16 @@ class Globvars(object):
             './data/lsoa_travel_time_matrix_calibrated.csv', index_col='LSOA')
         
         ivt_hospitals = list(hospitals[hospitals['Use_IVT']==1]['Postcode'])
-        self.lsoa_ivt_travel_time = travel_matrix[ivt_hospitals].min(axis=1)
-        self.lsoa_ivt_unit = travel_matrix[ivt_hospitals].idxmin(axis=1)
+        self.lsoa_ivt_travel_time = \
+            dict(travel_matrix[ivt_hospitals].min(axis=1))
+        self.lsoa_ivt_unit = \
+            dict(travel_matrix[ivt_hospitals].idxmin(axis=1))
 
         mt_hospitals = list(hospitals[hospitals['Use_MT']==1]['Postcode'])
-        self.lsoa_mt_travel_time = travel_matrix[mt_hospitals].min(axis=1)
-        self.lsoa_mt_unit = travel_matrix[mt_hospitals].idxmin(axis=1)
+        self.lsoa_mt_travel_time = \
+            dict(travel_matrix[mt_hospitals].min(axis=1))
+        self.lsoa_mt_unit = \
+            dict(travel_matrix[mt_hospitals].idxmin(axis=1))
 
         # Load and parse inter_hospital travel time for MT
         inter_hospital_time = pd.read_csv(
@@ -136,15 +149,15 @@ class Globvars(object):
             index_col='from_postcode')
 
         inter_hospital_time = \
-        inter_hospital_time.loc[ivt_hospitals][mt_hospitals]
+            inter_hospital_time.loc[ivt_hospitals][mt_hospitals]
 
-        ## Set distance between same hospitals to infinite
+        ## Set distance between same hospitals to zero
         rows = list(inter_hospital_time.index)
         cols = list(inter_hospital_time)
         for row in rows:
             for col in cols:
                 if row == col:
-                    inter_hospital_time.loc[row][col] = np.inf
+                    inter_hospital_time.loc[row][col] = 0
 
-        self.mt_transfer_time = inter_hospital_time.min(axis=1)
-        self.mt_transfer_unit = inter_hospital_time.idxmin(axis=1)
+        self.mt_transfer_time = dict(inter_hospital_time.min(axis=1))
+        self.mt_transfer_unit = dict(inter_hospital_time.idxmin(axis=1))
