@@ -214,6 +214,13 @@ class Clinical_outcome:
             np.cumsum(lvo_mt_hist) / lvo_mt_hist.sum()
         results['nlvo_ivt_cum_probs'] = \
             np.cumsum(nlvo_ivt_hist) / nlvo_ivt_hist.sum()
+
+        # Get proportion mRS <= 2
+        results['lvo_untreated_mrs<=2'] = results['lvo_untreated_cum_probs'][2]
+        results['nlvo_untreated_mrs<=2'] = results['nlvo_untreated_cum_probs'][2]
+        results['lvo_ivt_mrs<=2'] = results['lvo_ivt_cum_probs'][2]
+        results['lvo_mt_mrs<=2'] = results['lvo_mt_cum_probs'][2]
+        results['nlvo_ivt_mrs<=2'] = results['nlvo_ivt_cum_probs'][2]
         
         # Get shift in mRS probs and store
         results['lvo_ivt_shift'] = \
