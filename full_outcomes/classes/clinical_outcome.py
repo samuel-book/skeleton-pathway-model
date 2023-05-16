@@ -222,7 +222,7 @@ class Clinical_outcome:
             number_of_patients,
             valid_min=0,
             valid_max=1,
-            valid_dtypes=['int']
+            valid_dtypes=['int', 'bool']
         )
         self.each_patient_time_to_mt_mins = Patient_array(
             number_of_patients,
@@ -234,7 +234,7 @@ class Clinical_outcome:
             number_of_patients,
             valid_min=0,
             valid_max=1,
-            valid_dtypes=['int']
+            valid_dtypes=['int', 'bool']
         )
         
         # These will be calculated from the previous inputs:
@@ -242,31 +242,14 @@ class Clinical_outcome:
             number_of_patients,
             valid_min=0,
             valid_max=1,
-            valid_dtypes=['int']
+            valid_dtypes=['int', 'bool']
         )
         self.each_patient_mt_no_effect_bool = Patient_array(
             number_of_patients,
             valid_min=0,
             valid_max=1,
-            valid_dtypes=['int']
+            valid_dtypes=['int', 'bool']
         )
-        
-        # Set default values for patient array.
-        # Every value for every patient is initially zero.
-        self.each_patient_stroke_type_code = \
-            np.zeros(self.number_of_patients, dtype=np.int)
-        self.each_patient_time_to_ivt_mins = \
-            np.zeros(self.number_of_patients, dtype=np.float)
-        self.each_patient_received_ivt_bool = \
-            np.zeros(self.number_of_patients, dtype=np.int)
-        self.each_patient_time_to_mt_mins = \
-            np.zeros(self.number_of_patients, dtype=np.float)
-        self.each_patient_received_mt_bool = \
-            np.zeros(self.number_of_patients, dtype=np.int)
-        self.each_patient_ivt_no_effect_bool = \
-            np.zeros(self.number_of_patients, dtype=np.int)
-        self.each_patient_mt_no_effect_bool = \
-            np.zeros(self.number_of_patients, dtype=np.int)
 
     
     def __str__(self):
@@ -281,7 +264,7 @@ class Clinical_outcome:
                 ):
             print_str += '\n'
             print_str += f'{key} '
-            print_str += f'{val}'
+            print_str += f'{repr(val)}'
         
         print_str += '\n\n'
         print_str += ''.join([
@@ -293,8 +276,6 @@ class Clinical_outcome:
             '- each_patient_received_mt_bool\n',
             '- each_patient_ivt_no_effect_bool\n',
             '- each_patient_mt_no_effect_bool\n',
-            '- nLVO_dict\n',
-            '- LVO_dict\n',
             'The first five of these can be set manually to match a ',
             'chosen patient array.\n'
             ])
@@ -303,6 +284,14 @@ class Clinical_outcome:
             'The easiest way to create the results dictionaries is:\n',
             '  results, combo_results = ',
             'clinical_outcome.calculate_outcomes()'
+            ])
+        print_str += ''.join([
+            '\n',
+            'To see the current patient population statistics, run:\n',
+            '  clinical_outcome.print_patient_population_stats()\n',
+            'The data printed can then be accessed in these attributes:\n',
+            '- nLVO_dict\n',
+            '- LVO_dict\n',
             ])
         return print_str
     
@@ -316,11 +305,11 @@ class Clinical_outcome:
             'Clinical_outcome(',
             f'mrs_dists=DATAFRAME*, '
             f'number_of_patients={self.number_of_patients})',
-            '\n\n',
+            '        \n\n        ',
             'The dataframe DATAFRAME* is created with: \n',
             f'  index: {self.mrs_dists_input.index}, \n',
             f'  columns: {self.mrs_dists_input.columns}, \n',
-            f'  values: {self.mrs_dists_input.values}'
+            f'  values: {repr(self.mrs_dists_input.values)}'
             ])          
 
 
@@ -390,13 +379,13 @@ class Clinical_outcome:
             'MT no effect (bool)'
         ]
         patient_array_vars = [
-            self.each_patient_stroke_type_code,
-            self.each_patient_time_to_ivt_mins,
-            self.each_patient_received_ivt_bool,
-            self.each_patient_time_to_mt_mins,
-            self.each_patient_received_mt_bool,
-            self.each_patient_ivt_no_effect_bool,
-            self.each_patient_mt_no_effect_bool
+            self.each_patient_stroke_type_code.data,
+            self.each_patient_time_to_ivt_mins.data,
+            self.each_patient_received_ivt_bool.data,
+            self.each_patient_time_to_mt_mins.data,
+            self.each_patient_received_mt_bool.data,
+            self.each_patient_ivt_no_effect_bool.data,
+            self.each_patient_mt_no_effect_bool.data
             ]
         length_warning_str = ''.join([
             'The following patient arrays contain a different number ',
@@ -413,8 +402,8 @@ class Clinical_outcome:
         # Check if anyone has an nLVO and receives MT
         # (for which we don't have mRS probability distributions)
         number_of_patients_with_nLVO_and_MT = len((
-            (self.each_patient_stroke_type_code == 1) &
-            (self.each_patient_received_mt_bool > 0)
+            (self.each_patient_stroke_type_code.data == 1) &
+            (self.each_patient_received_mt_bool.data > 0)
             ).nonzero()[0])
         if number_of_patients_with_nLVO_and_MT > 0:
             print(''.join([
@@ -485,22 +474,22 @@ class Clinical_outcome:
         # From inputs, calculate which patients are treated too late
         # for any effect. Recalculate this on each run in case any 
         # of the patient arrays have changed since the last run.
-        self.each_patient_ivt_no_effect_bool = (
-            (self.each_patient_received_ivt_bool > 0) &
-            (self.each_patient_time_to_ivt_mins >=
+        self.each_patient_ivt_no_effect_bool.data = (
+            (self.each_patient_received_ivt_bool.data > 0) &
+            (self.each_patient_time_to_ivt_mins.data >=
              self.ivt_time_no_effect_mins)
             )
         
         # Create an x by 7 grid of mRS distributions,
         # one row of 7 mRS values for each of x patients.
-        mask_valid = (self.each_patient_stroke_type_code == 2)
+        mask_valid = (self.each_patient_stroke_type_code.data == 2)
         post_stroke_probs = self._calculate_probs_at_treatment_time(
             t0_logodds,
             no_effect_logodds,
-            self.each_patient_time_to_ivt_mins,
+            self.each_patient_time_to_ivt_mins.data,
             self.ivt_time_no_effect_mins,
-            self.each_patient_received_ivt_bool,
-            self.each_patient_ivt_no_effect_bool,
+            self.each_patient_received_ivt_bool.data,
+            self.each_patient_ivt_no_effect_bool.data,
             mask_valid,
             untreated_probs,
             no_effect_probs
@@ -547,21 +536,21 @@ class Clinical_outcome:
         # From inputs, calculate which patients are treated too late
         # for any effect. Recalculate this on each run in case any 
         # of the patient arrays have changed since the last run.
-        self.each_patient_mt_no_effect_bool = (
-            (self.each_patient_received_mt_bool > 0) &
-            (self.each_patient_time_to_mt_mins >= self.mt_time_no_effect_mins)
+        self.each_patient_mt_no_effect_bool.data = (
+            (self.each_patient_received_mt_bool.data > 0) &
+            (self.each_patient_time_to_mt_mins.data >= self.mt_time_no_effect_mins)
             )
         
         # Create an x by 7 grid of mRS distributions,
         # one row of 7 mRS values for each of x patients.
-        mask_valid = (self.each_patient_stroke_type_code == 2)
+        mask_valid = (self.each_patient_stroke_type_code.data == 2)
         post_stroke_probs = self._calculate_probs_at_treatment_time(
             t0_logodds,
             no_effect_logodds,
-            self.each_patient_time_to_mt_mins,
+            self.each_patient_time_to_mt_mins.data,
             self.mt_time_no_effect_mins,
-            self.each_patient_received_mt_bool,
-            self.each_patient_mt_no_effect_bool,
+            self.each_patient_received_mt_bool.data,
+            self.each_patient_mt_no_effect_bool.data,
             mask_valid,
             untreated_probs,
             no_effect_probs
@@ -610,21 +599,21 @@ class Clinical_outcome:
         # From inputs, calculate which patients are treated too late
         # for any effect. Recalculate this on each run in case any 
         # of the patient arrays have changed since the last run.
-        self.each_patient_ivt_no_effect_bool = (
-            (self.each_patient_received_ivt_bool > 0) &
-            (self.each_patient_time_to_ivt_mins >= self.ivt_time_no_effect_mins)
+        self.each_patient_ivt_no_effect_bool.data = (
+            (self.each_patient_received_ivt_bool.data > 0) &
+            (self.each_patient_time_to_ivt_mins.data >= self.ivt_time_no_effect_mins)
             )
         
         # Create an x by 7 grid of mRS distributions,
         # one row of 7 mRS values for each of x patients.
-        mask_valid = (self.each_patient_stroke_type_code == 1)
+        mask_valid = (self.each_patient_stroke_type_code.data == 1)
         post_stroke_probs = self._calculate_probs_at_treatment_time(
             t0_logodds,
             no_effect_logodds,
-            self.each_patient_time_to_ivt_mins,
+            self.each_patient_time_to_ivt_mins.data,
             self.ivt_time_no_effect_mins,
-            self.each_patient_received_ivt_bool,
-            self.each_patient_ivt_no_effect_bool,
+            self.each_patient_received_ivt_bool.data,
+            self.each_patient_ivt_no_effect_bool.data,
             mask_valid,
             untreated_probs,
             no_effect_probs
@@ -912,15 +901,15 @@ class Clinical_outcome:
         # LVO+IVT results for all LVO patients except those 
         # who received MT.
         inds_lvo_ivt = (
-            (self.each_patient_stroke_type_code == 2) &
-            (self.each_patient_received_mt_bool < 1)
+            (self.each_patient_stroke_type_code.data == 2) &
+            (self.each_patient_received_mt_bool.data < 1)
             )
         inds_lvo_mt = (
-            (self.each_patient_stroke_type_code == 2) &
-            (self.each_patient_received_mt_bool > 0)
+            (self.each_patient_stroke_type_code.data == 2) &
+            (self.each_patient_received_mt_bool.data > 0)
             )
         inds_nlvo_ivt = (
-            (self.each_patient_stroke_type_code == 1)
+            (self.each_patient_stroke_type_code.data == 1)
             )
         inds = [inds_lvo_ivt, inds_lvo_mt, inds_nlvo_ivt]
         
@@ -1046,36 +1035,36 @@ class Clinical_outcome:
         # Number of patients
         n_total = self.number_of_patients
         n_stroke_type = len((
-            self.each_patient_stroke_type_code ==
+            self.each_patient_stroke_type_code.data ==
             stroke_type_code).nonzero()[0])
         
         # Number treated with IVT
         n_IVT = len((
-            (self.each_patient_stroke_type_code == stroke_type_code) & 
-            (self.each_patient_received_ivt_bool > 0)
+            (self.each_patient_stroke_type_code.data == stroke_type_code) & 
+            (self.each_patient_received_ivt_bool.data > 0)
             ).nonzero()[0])
         # Number treated with MT
         n_MT = len((
-            (self.each_patient_stroke_type_code == stroke_type_code) & 
-            (self.each_patient_received_mt_bool > 0)
+            (self.each_patient_stroke_type_code.data == stroke_type_code) & 
+            (self.each_patient_received_mt_bool.data > 0)
             ).nonzero()[0])
         # Number treated with IVT after no-effect time 
         n_IVT_no_effect = len((
-            (self.each_patient_stroke_type_code == stroke_type_code) & 
-            (self.each_patient_received_ivt_bool > 0) &
-            (self.each_patient_ivt_no_effect_bool == 1)
+            (self.each_patient_stroke_type_code.data == stroke_type_code) & 
+            (self.each_patient_received_ivt_bool.data > 0) &
+            (self.each_patient_ivt_no_effect_bool.data == 1)
             ).nonzero()[0])
         # Number treated with MT after no-effect time 
         n_MT_no_effect = len((
-            (self.each_patient_stroke_type_code == stroke_type_code) & 
-            (self.each_patient_received_mt_bool > 0) &
-            (self.each_patient_mt_no_effect_bool == 1)
+            (self.each_patient_stroke_type_code.data == stroke_type_code) & 
+            (self.each_patient_received_mt_bool.data > 0) &
+            (self.each_patient_mt_no_effect_bool.data == 1)
             ).nonzero()[0])
         # Number not treated
         n_no_treatment = len((
-            (self.each_patient_stroke_type_code == stroke_type_code) & 
-            (self.each_patient_received_mt_bool < 1) & 
-            (self.each_patient_received_ivt_bool < 1)
+            (self.each_patient_stroke_type_code.data == stroke_type_code) & 
+            (self.each_patient_received_mt_bool.data < 1) & 
+            (self.each_patient_received_ivt_bool.data < 1)
             ).nonzero()[0])
         
         # Calculate proportions from the input numbers:
