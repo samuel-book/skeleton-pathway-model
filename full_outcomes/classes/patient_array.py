@@ -1,100 +1,156 @@
 import numpy as np
+import numpy.typing as npt  # For type hinting.
+
 
 class Patient_array:
+    """
+    A class for sanity-checking patient data given some restrictions.
+
+    The user can call this class with a given number of data entries
+    (one per patient), valid data types (e.g. int, string), and
+    optional valid upper and lower bounds for the values.
+    When setting the data array, the data is passed through a series of
+    checks that the data is within the given restrictions.
+
+    To use this class, call e.g.:
+      patient_array = Patient_array(
+          number_of_patients=10,
+          valid_min=0,
+          valid_max=2,
+          valid_dtypes=['int']
+      )
+    And then set data using e.g.:
+      patient_array.data = np.full(10, 1, dtype=int)
+    """
     def __init__(
-            self, 
-            number_of_patients,
-            valid_dtypes,
-            valid_min=None,
-            valid_max=None,
-            name_str=None
-        ):
-        """Set up the patient array."""
+            self,
+            number_of_patients: int,
+            valid_dtypes: list,
+            valid_min: float = np.NaN,
+            valid_max: float = np.NaN,
+            name_str: str = ''
+            ):
+        """
+        Set up the patient array.
+
+        Inputs:
+        -------
+        number_of_patients - int. Number of values for the data array.
+        valid_dtypes       - list of str. Allowed dtypes for the data
+                             array. e.g. 'int' encompasses 'int64' and
+                             similar more detailed type names.
+        valid_min          - float or int. Minimum allowed value of
+                             data in the array. If not applicable,
+                             set valid_min to NaN.
+        valid_max          - float or int. As valid_min for maximum.
+        name_str           - str. Optional name for this data array.
+
+        Initialises:
+        ------------
+        data - np.array. An array of one zero per patient in the first
+               dtype in the list of valid_dtypes. This default array
+               can be overwritten by the user and will then pass
+               through the sanity check function.
+        """
         self._number_of_patients = number_of_patients
         self._valid_dtypes = valid_dtypes
-        
+
         # Optional min and max allowed values of the array:
         self._valid_min = valid_min
         self._valid_max = valid_max
-        
+
         # Optional name for an instance of this class:
         self._name = name_str
-        
+
         # Initially create a data array with dummy data.
-        if valid_min is not None:
-            val = valid_min
-        else:
-            val = 0
+        val = 0 if np.isnan(valid_min) else valid_min
         data = np.full(number_of_patients, val, dtype=valid_dtypes[0])
         self.data = data
 
+
     def __str__(self):
-        """Prints info when print(Instance) is called."""
+        """
+        Prints info when print(Instance) is called.
+        """
         print_str = '\n'.join([
             'Patient array:',
             f'  _number_of_patients = {self._number_of_patients}',
             f'  _valid_dtypes = {self._valid_dtypes}',
+            f'  _valid_min = {self._valid_min}',
+            f'  _valid_max = {self._valid_max}',
+            f'  _name = {self._name}',
+            f'  data = {self.data}'
             ])
-        att_labels = ['_valid_min', '_valid_max', '_name']
-        atts = [self._valid_min, self._valid_max, self._name]
-        for i, att in enumerate(atts):
-            if att is not None:
-                print_str += '\n  '
-                print_str += att_labels[i] + ' = ' + f'{att}'
         return print_str
-    
+
+
     def __repr__(self):
-        """Prints how to reproduce this instance of the class."""
+        """
+        Prints how to reproduce this instance of the class.
+        """
         return ''.join([
-            f'Patient_array(',
+            'Patient_array(',
             f'number_of_patients={self._number_of_patients}, ',
             f'valid_dtypes={self._valid_dtypes}, ',
             f'valid_min={self._valid_min}, ',
             f'valid_max={self._valid_max}, ',
             f'name_str={self._name}',
-            f')'
+            ')'
             ])
-    
-    def __setattr__(self, key, value):
+
+
+    def __setattr__(self, key: str, value):
         """
         Set attribute to the given value.
+
+        Inputs:
+        -------
+        key   - str. Name of the attribute to be set.
+        value - anything! Value to set the attribute to.
         """
         if key[0] != '_':
+            # Expect this value to be a data array so run the sanity
+            # checks. If they fail, an exception is raised and the
+            # value will not be set.
             self.run_sanity_checks(value)
-            # If sanity checks fail, an exception is raised.
         self.__dict__[key] = value
-        
-    def __delattr__(self, key):
+
+
+    def __delattr__(self, key: str):
         """
         Set attribute to None (setup attrs) or default array (result).
+
+        Inputs:
+        -------
+        key - str. Name of the attribute to be deleted or reset.
         """
         if key[0] != '_':
             # Return patient array to default values.
             # Select default value:
-            if self._valid_min is not None:
-                default_val = self._valid_min
-            else:
-                default_val = 0
+            val = 0 if np.isnan(self._valid_min) else self._valid_min
             self.__dict__[key] = np.full(
                 self._number_of_patients,
-                default_val,
+                val,
                 dtype=np.dtype(self._valid_dtypes[0])
-            )
+                )
         else:
             # Change setup value to None.
             self.__dict__[key] = None
-        
 
-    def run_sanity_checks(self, arr):
+
+    def run_sanity_checks(self, arr: npt.ArrayLike):
         """
         Check consistency of input data array with the setup values.
-        
-        Don't raise exceptions as this function goes along to ensure
-        that all of the error messages are flagged up on the first
-        run through.
+
+        Inputs:
+        -------
+        arr - array. The data array to be checked.
         """
         # Sanity checks flag. Change this to False if any checks fail:
         sanity_checks_passed = True
+        # Don't raise exceptions as this function goes along to ensure
+        # that all of the error messages are flagged up on the first
+        # run through.
 
         # Are all values the right dtype?
         if arr.dtype not in [
@@ -110,7 +166,7 @@ class Patient_array:
         if self._valid_min is not None and self._valid_max is not None:
             if np.all(
                     (arr >= self._valid_min) & (arr <= self._valid_max)
-                    ) == False:
+                    ) is False:
                 print('Some values are outside the allowed range.')
                 sanity_checks_passed = False
 
@@ -127,12 +183,12 @@ class Patient_array:
         if len(arr) != self._number_of_patients:
             print(''.join([
                 f'This array contains {len(arr)} values ',
-                f'but the expected number of patients is ',
+                'but the expected number of patients is ',
                 f'{self._number_of_patients}. ',
-                f'Please update the arrays to be the same length.'
+                'Please update the arrays to be the same length.'
                 ]))
             sanity_checks_passed = False
-            
+
         # If any of the checks failed, raise exception now.
         if sanity_checks_passed is False:
             failed_str = 'Sanity checks failed. Values not updated.'
