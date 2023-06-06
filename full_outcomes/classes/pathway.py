@@ -777,7 +777,6 @@ class SSNAP_Pathway:
         --- Result ---
         Creation of self.trial['stroke_type_code'] array.
         
-        # CHANGE THIS TO STORE GROUP NUMBERS IN DICTIONARIES - DIFFICULT TO READ AT THE MOMENT ###################
         """
         # Initially set all patients to "other stroke type":
         trial_stroke_type_code = np.full(self.patients_per_run, 0)
@@ -785,9 +784,10 @@ class SSNAP_Pathway:
         trial_type_assigned_bool = np.zeros(self.patients_per_run, dtype=int)
 
         # Target numbers of patients with each stroke type:
-        n_lvo = int(round(self.patients_per_run * self.proportion_lvo, 0))
-        n_nlvo = int(round(self.patients_per_run * self.proportion_nlvo, 0))
-        n_else = self.patients_per_run - (n_lvo + n_nlvo)
+        total = dict()
+        total['lvo'] = int(round(self.patients_per_run * self.proportion_lvo, 0))
+        total['nlvo'] = int(round(self.patients_per_run * self.proportion_nlvo, 0))
+        total['else'] = self.patients_per_run - (total['lvo'] + total['nlvo'])
 
         # Available combinations:
         # | Type | Code | Thrombolysis | Thrombectomy |
@@ -795,71 +795,84 @@ class SSNAP_Pathway:
         # | nLVO | 1    | Yes or no    | No           |
         # | LVO  | 2    | Yes or no    | Yes or no    |
         # | Else | 0    | No           | No           |
-        n_lvo_left_to_assign = n_lvo
-        n_nlvo_left_to_assign = n_nlvo
-        n_else_left_to_assign = n_else
+        n_lvo_left_to_assign = total['lvo']
+        n_nlvo_left_to_assign = total['nlvo']
+        n_else_left_to_assign = total['else']
 
         # ### STEP 1 ###
         # Firstly set everyone chosen for thrombectomy to LVO.
+        # (Groups A and B)
         inds_chosen_for_mt = np.where(
             self.trial['mt_chosen_bool'].data == 1)[0]
         trial_stroke_type_code[inds_chosen_for_mt] = 2
         # Bookkeeping:
-        n_all_chosen_for_mt = len(inds_chosen_for_mt)
-        n_lvo_chosen_for_mt = n_all_chosen_for_mt
-        n_nlvo_chosen_for_mt = 0
-        n_else_chosen_for_mt = 0
+        groupAB = dict()
+        groupAB['all'] = len(inds_chosen_for_mt)
+        groupAB['lvo'] = groupAB['all']
+        groupAB['nlvo'] = 0
+        groupAB['else'] = 0
 
-
-        n_lvo_left_to_assign -= n_lvo_chosen_for_mt
+        n_lvo_left_to_assign -= groupAB['lvo']
         trial_type_assigned_bool[inds_chosen_for_mt] += 1
 
         # ### STEP 2 ###
         # Set everyone chosen for thrombolysis to either nLVO or LVO
         # in the same ratio as the patient proportions if possible.
+        # (Groups B and C)
         inds_chosen_for_ivt = np.where(
             self.trial['ivt_chosen_bool'].data == 1)[0]
-
-        n_all_chosen_for_ivt = len(inds_chosen_for_ivt)
-        n_lvo_chosen_for_ivt = int(n_all_chosen_for_ivt * self.proportion_lvo)
-        n_nlvo_chosen_for_ivt = n_all_chosen_for_ivt - n_lvo_chosen_for_ivt
-        n_else_chosen_for_ivt = 0
-
-        # So for this subset of patients...
+        # Group B:
+        inds_chosen_for_ivt_and_mt = np.where(
+            (self.trial['ivt_chosen_bool'].data == 1) &
+            (self.trial['mt_chosen_bool'].data == 1))[0]
+        # Group C:
         inds_chosen_for_ivt_and_not_mt = np.where(
             (self.trial['ivt_chosen_bool'].data == 1) &
             (self.trial['mt_chosen_bool'].data == 0))[0]
+
+        groupBC = dict()
+        groupBC['all'] = len(inds_chosen_for_ivt)
+        # groupBC['lvo'] = int(round(groupBC['all'] * self.proportion_lvo, 0))
+        # groupBC['nlvo'] = groupBC['all'] - groupBC['lvo']
+        groupBC['nlvo'] = np.minimum(
+            int(round(groupBC['all'] * (1.0 - self.proportion_lvo), 0)), 
+            len(inds_chosen_for_ivt_and_not_mt))
+        groupBC['lvo'] = groupBC['all'] - groupBC['nlvo']
+        groupBC['else'] = 0
+
+        # So for this subset of patients...
         # But some LVO have already been assigned because of the
         # overlap between patients receiving thrombolysis and
         # thrombectomy.
-        n_all_chosen_for_mt_and_not_ivt = int(round(
-            n_all_chosen_for_mt * (1.0 - self.real_data_dict['proportion_of_mt_also_receiving_ivt']), 0))
-        n_lvo_chosen_for_mt_and_not_ivt = n_all_chosen_for_mt_and_not_ivt
-        n_nlvo_chosen_for_mt_and_not_ivt = 0
-        n_else_chosen_for_mt_and_not_ivt = 0
+        # Group A:
+        groupA = dict()
+        groupA['all'] = int(round(
+            groupAB['all'] * (1.0 - self.real_data_dict['proportion_of_mt_also_receiving_ivt']), 0))
+        groupA['lvo'] = groupA['all']
+        groupA['nlvo'] = 0
+        groupA['else'] = 0
+        # Group B:
+        groupB = dict()
+        groupB['all'] = len(inds_chosen_for_ivt_and_mt)
+        groupB['lvo'] = groupB['all']
+        groupB['nlvo'] = 0
+        groupB['else'] = 0
+        # Group C:
+        groupC = dict()
+        groupC['all'] = len(inds_chosen_for_ivt_and_not_mt)
+        groupC['nlvo'] = groupBC['nlvo']
+        groupC['lvo'] = groupC['all'] - groupC['nlvo']
+        groupC['else'] = 0
 
-        n_all_chosen_for_mt_and_ivt = (
-            n_all_chosen_for_mt - n_all_chosen_for_mt_and_not_ivt)
-        n_lvo_chosen_for_mt_and_ivt = n_all_chosen_for_mt_and_ivt
-        n_nlvo_chosen_for_mt_and_ivt = 0
-        n_else_chosen_for_mt_and_ivt = 0
-
-        n_all_chosen_for_ivt_and_not_mt = len(inds_chosen_for_ivt_and_not_mt)
-        n_lvo_chosen_for_ivt_and_not_mt = np.maximum(
-            n_lvo_chosen_for_ivt - n_lvo_chosen_for_mt_and_ivt, 0)
-        n_nlvo_chosen_for_ivt_and_not_mt = (
-            n_all_chosen_for_ivt_and_not_mt - n_lvo_chosen_for_ivt_and_not_mt)
-        n_else_chosen_for_ivt_and_not_mt = 0
-
-        if n_nlvo_chosen_for_ivt != n_nlvo_chosen_for_ivt_and_not_mt:
-            print('??', n_nlvo_chosen_for_ivt, n_nlvo_chosen_for_ivt_and_not_mt)
+        if groupBC['lvo'] != np.sum((groupC['lvo'], groupB['lvo'])):
+            print('??', groupBC['lvo'], groupB['lvo'], groupC['lvo'])
 
 
         # For each of LVO and nLVO, randomly select some indices out
-        # of Group C (IVT and not MT):
+        # of Group C (IVT and not MT). 
         inds_lvo_chosen_for_ivt_and_not_mt = np.random.choice(
             inds_chosen_for_ivt_and_not_mt,
-            size=n_lvo_chosen_for_ivt_and_not_mt,
+            size=groupC['lvo'],
             replace=False
             )
         inds_nlvo_chosen_for_ivt_and_not_mt = np.array(list(
@@ -871,8 +884,8 @@ class SSNAP_Pathway:
         trial_stroke_type_code[inds_nlvo_chosen_for_ivt_and_not_mt] = 1
 
         # Bookkeeping:
-        n_lvo_left_to_assign -= n_lvo_chosen_for_ivt_and_not_mt
-        n_nlvo_left_to_assign -= n_nlvo_chosen_for_ivt_and_not_mt
+        n_lvo_left_to_assign -= groupC['lvo']
+        n_nlvo_left_to_assign -= groupC['nlvo']
 
         # ### STEP 3 ###
         # Sanity check that the number of patients we're about to
@@ -889,6 +902,9 @@ class SSNAP_Pathway:
         # thrombectomy. They may have any stroke type.
         # For each stroke type, randomly select some indices out
         # of those that have not yet been assigned a stroke type:
+        # Group D.
+        groupD = dict()
+        groupD['all'] = n_not_yet_assigned
         inds_no_treatment_lvo = np.random.choice(
             np.where(trial_type_assigned_bool == 0)[0],
             size=n_lvo_left_to_assign,
@@ -896,6 +912,7 @@ class SSNAP_Pathway:
             )
         trial_type_assigned_bool[inds_no_treatment_lvo] += 1
         trial_stroke_type_code[inds_no_treatment_lvo] = 2
+        groupD['lvo'] = n_lvo_left_to_assign
 
         inds_no_treatment_nlvo = np.random.choice(
             np.where(trial_type_assigned_bool == 0)[0],
@@ -904,6 +921,7 @@ class SSNAP_Pathway:
             )
         trial_type_assigned_bool[inds_no_treatment_nlvo] += 1
         trial_stroke_type_code[inds_no_treatment_nlvo] = 1
+        groupD['nlvo'] = n_nlvo_left_to_assign
 
         inds_no_treatment_else = np.random.choice(
             np.where(trial_type_assigned_bool == 0)[0],
@@ -912,14 +930,7 @@ class SSNAP_Pathway:
             )
         trial_type_assigned_bool[inds_no_treatment_else] += 1
         trial_stroke_type_code[inds_no_treatment_else] = 0
-
-
-#         print('All, LVO, nLVO, else')
-#         print('Groups A + B ', n_all_chosen_for_mt, n_lvo_chosen_for_mt, n_nlvo_chosen_for_mt, n_else_chosen_for_mt)
-#         print('Groups B + C ', n_all_chosen_for_ivt, n_lvo_chosen_for_ivt, n_nlvo_chosen_for_ivt, n_else_chosen_for_ivt)
-#         print('Group  A     ', n_all_chosen_for_mt_and_not_ivt, n_lvo_chosen_for_mt_and_not_ivt, n_nlvo_chosen_for_mt_and_not_ivt, n_else_chosen_for_mt_and_not_ivt)
-#         print('Group  B     ', n_all_chosen_for_mt_and_ivt, n_lvo_chosen_for_mt_and_ivt, n_nlvo_chosen_for_mt_and_ivt, n_else_chosen_for_mt_and_ivt)
-#         print('Group  C     ', n_all_chosen_for_ivt_and_not_mt, n_lvo_chosen_for_ivt_and_not_mt, n_nlvo_chosen_for_ivt_and_not_mt, n_else_chosen_for_ivt_and_not_mt)
+        groupD['else'] = n_else_left_to_assign
 
 
         # ### Final check ###
@@ -936,105 +947,6 @@ class SSNAP_Pathway:
         # Now save this final array to self:
         self.trial['stroke_type_code'].data = trial_stroke_type_code
 
-
-#     def _create_masks_of_patient_subgroups(self):
-
-#         # Store the resulting masks in here:
-#         ivt_masks = dict()
-#         mt_masks = dict()
-#         mask_dicts = [ivt_masks, mt_masks]
-
-#         # Boolean arrays we already have go in here:
-#         ivt_bool_dict = dict(
-#             onset_to_arrival = \
-#                 self.trial['onset_to_arrival_within_limit_ivt_bool,
-#             arrival_to_scan = \
-#                 self.trial['arrival_to_scan_within_limit_ivt_bool,
-#             onset_to_scan = \
-#                 self.trial['onset_to_arrival_within_limit_ivt_bool,
-#             scan_to_needle = \
-#                 self.trial['scan_to_needle_within_limit_ivt_bool,
-#             scan_to_puncture = \
-#                 self.trial['scan_to_puncture_within_limit_ivt_bool,
-#             allowed_time = \
-#                 self.allowed_onset_to_needle_time_mins,
-#             enough_time_left = \
-#                 self.trial['enough_time_for_ivt_bool
-#         )
-#         mt_bool_dict = dict(
-#             onset_to_arrival = \
-#                 self.trial['onset_to_arrival_within_limit_mt_bool,
-#             arrival_to_scan = \
-#                 self.trial['arrival_to_scan_within_limit_mt_bool,
-#             onset_to_scan = \
-#                 self.trial['onset_to_scan_within_limit_mt_bool,
-#             scan_to_needle = \
-#                 self.trial['scan_to_needle_within_limit_mt_bool,
-#             scan_to_puncture = \
-#                 self.trial['scan_to_puncture_within_limit_mt_bool,
-#             allowed_time = \
-#                 self.allowed_onset_to_puncture_time_mins,
-#             enough_time_left = \
-#                 self.trial['enough_time_for_mt_bool
-#         )
-#         bool_dicts = [ivt_bool_dict, mt_bool_dict]
-
-#         # Number of hours we're using as a limit:
-#         limits_hours = [
-#             self.limit_ivt_mins/60,
-#             self.limit_mt_mins/60
-#             ]
-
-#         # Other arrays that are shared by both treatment types:
-#         # + self.trial['onset_time_known_bool
-
-#         for i, bool_dict in enumerate(bool_dicts):
-#             # Step 1: Is onset time known?
-#             mask_onset_known = self.trial['onset_time_known_bool
-
-#             # Step 2: Is arrival within x hours?
-#             mask_arrival_within_xhr = (
-#                 (mask_onset_known == 1) &
-#                 (bool_dict['onset_to_arrival'] == 1)
-#                 )
-
-#             # Step 3: Is scan within x hours of arrival?
-#             mask_scan_within_xhr_of_arrival = (
-#                 (mask_arrival_within_xhr == 1) &
-#                 (bool_dict['arrival_to_scan'] == 1)
-#                 )
-
-#             # Step 4: Is scan within x hours of onset?
-#             # What's the time limit in hours?
-#             x = limits_hours[i]
-#             mask_scan_within_xhr_of_onset = (
-#                 (mask_scan_within_xhr_of_arrival == 1) &
-#                 (bool_dict['onset_to_scan'] == 1)
-#                 )
-
-
-#             # Step 5: Is there enough time left for thrombolysis/thrombectomy?
-#             mask_enough_time_to_treat = (
-#                 (mask_scan_within_xhr_of_onset == 1) &
-#                 (bool_dict['enough_time_left'])
-#                 )
-
-#             # Step 6: Did the patient receive thrombolysis/thrombectomy?
-#             # This hasn't actually been calculated yet.
-#             # The mask will be saved when the information is available.
-
-#             # Place the masks into the dictionary.
-#             mask_dict = mask_dicts[i]
-#             trial[treatment + '_mask1_onset_known'] = mask_onset_known
-#             mask_dict['2_mask1_and_onset_to_arrival_on_time'] = mask_arrival_within_xhr
-#             mask_dict['3_mask2_and_arrival_to_scan_on_time'] = \
-#                 mask_scan_within_xhr_of_arrival
-#             mask_dict['4_mask3_and_onset_to_scan_on_time'] = \
-#                 mask_scan_within_xhr_of_onset
-#             mask_dict['5_mask4_and_enough_time_to_treat'] = \
-#                 mask_enough_time_to_treat
-
-#         return ivt_masks, mt_masks
 
     # ##############################
     # ######## CREATE MASKS ########
