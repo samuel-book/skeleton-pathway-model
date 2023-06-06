@@ -384,12 +384,13 @@ class SSNAP_Pathway:
             sigma_mt,
             label=label_for_printing + ' on time for thrombectomy'
             )
-        self._check_distribution_statistics(
-            times_mins[times_mins <= self.limit_ivt_mins],
-            mu_ivt,
-            sigma_ivt,
-            label=label_for_printing + ' on time for thrombolysis'
-            )
+        if mu_mt != mu_ivt and sigma_mt != sigma_ivt:
+            self._check_distribution_statistics(
+                times_mins[times_mins <= self.limit_ivt_mins],
+                mu_ivt,
+                sigma_ivt,
+                label=label_for_printing + ' on time for thrombolysis'
+                )
         
         return times_mins
 
@@ -760,7 +761,7 @@ class SSNAP_Pathway:
            For example:   B       C          Some LVO patients
                         ░░░░░▒▒▒▒▒▒▒▒▒▒▒     have already been placed
                         <-LVO-><--nLVO->     into Group ░B░.
-           To find how many LVO patients go into Group ▒C▒:
+           To find how many LVO patients go into Group ▒C▒: ########################################## update this method.
            35% (e.g.) = (
                (LVO patients in Group ░B░ +
                LVO patients in Group ▒C▒) /
@@ -847,7 +848,8 @@ class SSNAP_Pathway:
         # Group A:
         groupA = dict()
         groupA['all'] = int(round(
-            groupAB['all'] * (1.0 - self.real_data_dict['proportion_of_mt_also_receiving_ivt']), 0))
+            groupAB['all'] * 
+            (1.0 - self.real_data_dict['proportion_of_mt_also_receiving_ivt']), 0))
         groupA['lvo'] = groupA['all']
         groupA['nlvo'] = 0
         groupA['else'] = 0
@@ -1305,13 +1307,17 @@ class SSNAP_Pathway:
         - the new mu is outside the old mu +/- old sigma, or
         - the new sigma is considerably larger than old sigma.
         """
-        # Actual statistics:
+        # Set all zero or negative values to something tiny here
+        # to prevent RuntimeWarning about division by zero
+        # encountered in log.
+        patient_times = np.clip(patient_times, a_min=1e-7, a_max=None)
+        
+        # Actual statistics.
         mu_actual = np.mean(np.log(patient_times))
         sigma_actual = np.std(np.log(patient_times))
 
         # Check new mu:
-        if ((mu_actual > mu_target + sigma_target) or
-            (mu_actual < mu_target - sigma_target)):
+        if abs(mu_target - mu_actual) > sigma_target:
             print(''.join([
                 f'Warning: the log-normal "{label}" distribution ',
                 'has a mean outside the target mean plus or minus ',

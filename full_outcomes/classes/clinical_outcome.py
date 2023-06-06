@@ -187,6 +187,8 @@ class Clinical_outcome:
         for index, row in mrs_dists.iterrows():
             p = np.array([row[str(x)] for x in range(7)])
             self.mrs_distribution_probs[index] = p
+            # Remove a tiny amount to prevent division by zero.
+            p[np.where(p==1.0)] = 1.0 - 1e-10
             # Convert to log odds
             o = p / (1 - p)
             self.mrs_distribution_logodds[index] = np.log(o)
