@@ -1149,6 +1149,15 @@ class SSNAP_Pathway:
         """
         Assign stroke type based partly on treatment decision.
 
+        Available combinations:
+        +------+------+--------------+--------------|
+        | Type | Code | Thrombolysis | Thrombectomy |
+        +------+------+--------------+--------------|
+        | nLVO | 1    | Yes or no    | No           |
+        | LVO  | 2    | Yes or no    | Yes or no    |
+        | Else | 0    | No           | No           |
+        +------+------+--------------+--------------|
+        
         --- Requirements ---
         The patient cohort can be split into the following four groups:
 
@@ -1173,17 +1182,13 @@ class SSNAP_Pathway:
            For example:   B       C          Some LVO patients
                         ░░░░░▒▒▒▒▒▒▒▒▒▒▒     have already been placed
                         <-LVO-><--nLVO->     into Group ░B░.
-           To find how many LVO patients go into Group ▒C▒: ########################################## update this method.
-           35% (e.g.) = (
-               (LVO patients in Group ░B░ +
-               LVO patients in Group ▒C▒) /
-               (All patients in Groups ░B░ and ▒C▒)
-               )
-           -> LVO patients in Group ▒C▒ = (
-               35% (e.g.) * (All patients in Groups ░B░ and ▒C▒) -
-               LVO patients in Group ░B░
-               )
-           The rest of the patients in Group ▒C▒ are assigned as nLVO.
+
+           Calculate how many patients should have nLVO according to
+           the target proportion. Set the number of nLVO patients in
+           Group ▒C▒ to either this number or the total number of 
+           patients in Group ▒C▒, whichever is smaller. Then
+           the rest of the patients in Group ▒C▒ are assigned as LVO.
+           The specific patients chosen for each are picked at random.
         3. Randomly pick patients in Group █D█ to be each stroke type
            so that the numbers add up as expected.
 
@@ -1197,158 +1202,138 @@ class SSNAP_Pathway:
         trial_type_assigned_bool = np.zeros(self.patients_per_run, dtype=int)
 
         # Target numbers of patients with each stroke type:
-        total = dict()
-        total['lvo'] = int(round(self.patients_per_run * self.proportion_lvo, 0))
-        total['nlvo'] = int(round(self.patients_per_run * self.proportion_nlvo, 0))
-        total['else'] = self.patients_per_run - (total['lvo'] + total['nlvo'])
-
-        # Available combinations:
-        # | Type | Code | Thrombolysis | Thrombectomy |
-        # +------+------+--------------+--------------|
-        # | nLVO | 1    | Yes or no    | No           |
-        # | LVO  | 2    | Yes or no    | Yes or no    |
-        # | Else | 0    | No           | No           |
-        n_lvo_left_to_assign = total['lvo']
-        n_nlvo_left_to_assign = total['nlvo']
-        n_else_left_to_assign = total['else']
-
-        # ### STEP 1 ###
-        # Firstly set everyone chosen for thrombectomy to LVO.
-        # (Groups A and B)
-        inds_chosen_for_mt = np.where(
-            self.trial['mt_chosen_bool'].data == 1)[0]
-        trial_stroke_type_code[inds_chosen_for_mt] = 2
-        # Bookkeeping:
-        groupAB = dict()
-        groupAB['all'] = len(inds_chosen_for_mt)
-        groupAB['lvo'] = groupAB['all']
-        groupAB['nlvo'] = 0
-        groupAB['else'] = 0
-
-        n_lvo_left_to_assign -= groupAB['lvo']
-        trial_type_assigned_bool[inds_chosen_for_mt] += 1
-
-        # ### STEP 2 ###
-        # Set everyone chosen for thrombolysis to either nLVO or LVO
-        # in the same ratio as the patient proportions if possible.
-        # (Groups B and C)
-        inds_chosen_for_ivt = np.where(
-            self.trial['ivt_chosen_bool'].data == 1)[0]
-        # Group B:
-        inds_chosen_for_ivt_and_mt = np.where(
+        total = dict(
+            total = self.patients_per_run,
+            lvo = int(
+                round(self.patients_per_run * self.proportion_lvo, 0)),
+            nlvo = int(
+                round(self.patients_per_run * self.proportion_nlvo, 0))
+        )
+        total['other'] = self.patients_per_run - (total['lvo'] + total['nlvo'])
+        
+        
+        # Find which patients are in each group.
+        inds_groupA = np.where(
+            (self.trial['mt_chosen_bool'].data == 1) & 
+            (self.trial['ivt_chosen_bool'].data == 0))[0]
+        inds_groupB = np.where(
             (self.trial['ivt_chosen_bool'].data == 1) &
             (self.trial['mt_chosen_bool'].data == 1))[0]
-        # Group C:
-        inds_chosen_for_ivt_and_not_mt = np.where(
+        inds_groupBC = np.where(
+            self.trial['ivt_chosen_bool'].data == 1)[0]
+        inds_groupC = np.where(
             (self.trial['ivt_chosen_bool'].data == 1) &
             (self.trial['mt_chosen_bool'].data == 0))[0]
-
-        groupBC = dict()
-        groupBC['all'] = len(inds_chosen_for_ivt)
-        # groupBC['lvo'] = int(round(groupBC['all'] * self.proportion_lvo, 0))
-        # groupBC['nlvo'] = groupBC['all'] - groupBC['lvo']
-        groupBC['nlvo'] = np.minimum(
-            int(round(groupBC['all'] * (1.0 - self.proportion_lvo), 0)), 
-            len(inds_chosen_for_ivt_and_not_mt))
-        groupBC['lvo'] = groupBC['all'] - groupBC['nlvo']
-        groupBC['else'] = 0
-
-        # So for this subset of patients...
-        # But some LVO have already been assigned because of the
-        # overlap between patients receiving thrombolysis and
-        # thrombectomy.
-        # Group A:
-        groupA = dict()
-        groupA['all'] = int(round(
-            groupAB['all'] * 
-            (1.0 - self.target_data_dict['proportion_of_mt_also_receiving_ivt']), 0))
-        groupA['lvo'] = groupA['all']
-        groupA['nlvo'] = 0
-        groupA['else'] = 0
-        # Group B:
-        groupB = dict()
-        groupB['all'] = len(inds_chosen_for_ivt_and_mt)
-        groupB['lvo'] = groupB['all']
-        groupB['nlvo'] = 0
-        groupB['else'] = 0
-        # Group C:
-        groupC = dict()
-        groupC['all'] = len(inds_chosen_for_ivt_and_not_mt)
-        groupC['nlvo'] = groupBC['nlvo']
-        groupC['lvo'] = groupC['all'] - groupC['nlvo']
-        groupC['else'] = 0
-
-        if groupBC['lvo'] != np.sum((groupC['lvo'], groupB['lvo'])):
-            print('??', groupBC['lvo'], groupB['lvo'], groupC['lvo'])
-
-
-        # For each of LVO and nLVO, randomly select some indices out
-        # of Group C (IVT and not MT). 
-        inds_lvo_chosen_for_ivt_and_not_mt = np.random.choice(
-            inds_chosen_for_ivt_and_not_mt,
+        
+        # Find how many patients in each group have each stroke type.
+        # Step 1: all thrombectomy patients are LVO.
+        groupA = dict(
+            total = len(inds_groupA),
+            lvo = len(inds_groupA),
+            nlvo = 0,
+            other = 0,
+            )
+        groupB = dict(
+            total = len(inds_groupB),
+            lvo = len(inds_groupB),
+            nlvo = 0,
+            other = 0
+            )
+        
+        # Step 2: all thrombolysis patients have nLVO or LVO
+        # in the same ratio as the patient proportions if possible.
+        # Work out how many people have nLVO and were thrombolysed.
+        # This is the smaller of: 
+        # the total number of people in group C...
+        n1 = len(inds_groupC)
+        # ... and the number of people in groups B and C that 
+        # should have nLVO according to the target proportion...
+        n2 = int(
+            round(len(inds_groupBC) * (1.0 - self.proportion_lvo), 0)
+            )
+        # ... to give this value:
+        n_nlvo_and_thrombolysis = np.minimum(n1, n2)
+        
+        # So this many nLVO and LVO patients are in Group C:
+        groupC = dict(
+            total = len(inds_groupC),
+            nlvo = n_nlvo_and_thrombolysis,
+            lvo = len(inds_groupC) - n_nlvo_and_thrombolysis,
+            other = 0
+            )
+                
+        # Randomly select which patients in Group C have each type.
+        # For LVO, select these people... 
+        inds_lvo_groupC = np.random.choice(
+            inds_groupC,
             size=groupC['lvo'],
             replace=False
             )
-        inds_nlvo_chosen_for_ivt_and_not_mt = np.array(list(
-            set(inds_chosen_for_ivt_and_not_mt) -
-            set(inds_lvo_chosen_for_ivt_and_not_mt)
+        # ... and for nLVO, select everyone else.
+        inds_nlvo_groupC = np.array(list(
+            set(inds_groupC) -
+            set(inds_lvo_groupC)
             ))
-        trial_type_assigned_bool[inds_chosen_for_ivt_and_not_mt] += 1
-        trial_stroke_type_code[inds_lvo_chosen_for_ivt_and_not_mt] = 2
-        trial_stroke_type_code[inds_nlvo_chosen_for_ivt_and_not_mt] = 1
-
+        
         # Bookkeeping:
-        n_lvo_left_to_assign -= groupC['lvo']
-        n_nlvo_left_to_assign -= groupC['nlvo']
+        # Set the chosen patients to their stroke types:
+        trial_stroke_type_code[inds_groupA] = 2
+        trial_stroke_type_code[inds_groupB] = 2
+        trial_stroke_type_code[inds_lvo_groupC] = 2
+        trial_stroke_type_code[inds_nlvo_groupC] = 1
+        
+        # Keep track of which patients have been assigned a type:
+        trial_type_assigned_bool[inds_groupA] += 1
+        trial_type_assigned_bool[inds_groupB] += 1
+        trial_type_assigned_bool[inds_groupC] += 1
 
-        # ### STEP 3 ###
-        # Sanity check that the number of patients we're about to
-        # assign matches the number remaining in the array:
-        n_left_list = [
-            n_lvo_left_to_assign, n_nlvo_left_to_assign, n_else_left_to_assign
-            ]
-        n_not_yet_assigned = len(
-            np.where(trial_type_assigned_bool == 0)[0])
-        if np.sum(n_left_list) != n_not_yet_assigned:
-            print('Something has gone wrong in assigning stroke types. ')
 
-        # All other patients received neither thrombolysis nor
-        # thrombectomy. They may have any stroke type.
+        # Step 3: everyone else is in Group D.
+        groupD = dict(
+            total = (total['total'] - 
+                   (groupA['total'] + groupB['total'] + groupC['total'])),
+            lvo = (total['lvo'] - 
+                   (groupA['lvo'] + groupB['lvo'] + groupC['lvo'])),
+            nlvo = (total['nlvo'] - 
+                    (groupA['nlvo'] + groupB['nlvo'] + groupC['nlvo'])),
+            other = (total['other'] - 
+                    (groupA['other'] + groupB['other'] + groupC['other']))
+            )
         # For each stroke type, randomly select some indices out
-        # of those that have not yet been assigned a stroke type:
-        # Group D.
-        groupD = dict()
-        groupD['all'] = n_not_yet_assigned
-        inds_no_treatment_lvo = np.random.choice(
+        # of those that have not yet been assigned a stroke type.
+        # LVO selects from everything in Group D:
+        inds_groupD_lvo = np.random.choice(
             np.where(trial_type_assigned_bool == 0)[0],
-            size=n_lvo_left_to_assign,
+            size=groupD['lvo'],
             replace=False
             )
-        trial_type_assigned_bool[inds_no_treatment_lvo] += 1
-        trial_stroke_type_code[inds_no_treatment_lvo] = 2
-        groupD['lvo'] = n_lvo_left_to_assign
+        trial_type_assigned_bool[inds_groupD_lvo] += 1
+        trial_stroke_type_code[inds_groupD_lvo] = 2
+        
+        # nLVO selects from everything in Group D that hasn't
+        # already been assigned to LVO:
+        inds_groupD_nlvo = np.random.choice(
+            np.where(trial_type_assigned_bool == 0)[0],
+            size=groupD['nlvo'],
+            replace=False
+            )
+        trial_type_assigned_bool[inds_groupD_nlvo] += 1
+        trial_stroke_type_code[inds_groupD_nlvo] = 1
 
-        inds_no_treatment_nlvo = np.random.choice(
+        # Other types select from everything in Group D that hasn't
+        # already been assigned to LVO or nLVO:
+        inds_groupD_other = np.random.choice(
             np.where(trial_type_assigned_bool == 0)[0],
-            size=n_nlvo_left_to_assign,
+            size=groupD['other'],
             replace=False
             )
-        trial_type_assigned_bool[inds_no_treatment_nlvo] += 1
-        trial_stroke_type_code[inds_no_treatment_nlvo] = 1
-        groupD['nlvo'] = n_nlvo_left_to_assign
-
-        inds_no_treatment_else = np.random.choice(
-            np.where(trial_type_assigned_bool == 0)[0],
-            size=n_else_left_to_assign,
-            replace=False
-            )
-        trial_type_assigned_bool[inds_no_treatment_else] += 1
-        trial_stroke_type_code[inds_no_treatment_else] = 0
-        groupD['else'] = n_else_left_to_assign
+        trial_type_assigned_bool[inds_groupD_other] += 1
+        trial_stroke_type_code[inds_groupD_other] = 0
 
 
         # ### Final check ###
-        # Sanity check that no patient was assigned multiple stroke types:
+        # Sanity check that each patient was assigned exactly 
+        # one stroke type:
         if np.any(trial_type_assigned_bool > 1):
             print(''.join([
                 'Warning: check the stroke type code assignment. ',
@@ -1358,7 +1343,7 @@ class SSNAP_Pathway:
                 'Warning: check the stroke type code assignment. ',
                 'Some patients were not assigned a stroke type. ']))
 
-        # Now save this final array to self:
+        # Now store this final array in self:
         self.trial['stroke_type_code'].data = trial_stroke_type_code
 
 
