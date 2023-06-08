@@ -1456,6 +1456,24 @@ class SSNAP_Pathway:
         """
         Mask 1: Is onset time known?
         
+        Although this mask looks redundant, it is provided for easier
+        direct comparison with the masks creating during the hospital
+        performance data extraction. The IVT mask is identical to the
+        MT mask and both are an exact copy of the onset known boolean
+        array.
+        
+        Creates:
+        --------
+        ivt_mask1_onset_known -
+            Mask of whether onset time is known for each patient.
+        mt_mask1_onset_known -
+            Mask of whether onset time is known for each patient.
+        
+        Uses:
+        -----
+        onset_time_known_bool - 
+            Whether onset time is known for each patient. Created in
+            _generate_onset_time_known_binomial().
         """
         # Same mask for thrombolysis and thrombolysis.
         mask = np.copy(self.trial['onset_time_known_bool'].data)
@@ -1463,10 +1481,38 @@ class SSNAP_Pathway:
         self.trial['ivt_mask1_onset_known'].data = mask
         self.trial['mt_mask1_onset_known'].data = mask
 
+
     def _create_masks_onset_to_arrival_on_time(self):
         """
         Mask 2: Is arrival within x hours?
         
+        Creates:
+        --------
+        ivt_mask2_mask1_and_onset_to_arrival_on_time -
+            Mask of whether the onset to arrival time is below the
+            thrombolysis limit and whether mask 1 is True 
+            for each patient.
+        mt_mask2_mask1_and_onset_to_arrival_on_time -
+            Mask of whether the onset to arrival time is below the
+            thrombectomy limit and whether mask 1 is True 
+            for each patient.
+        
+        Uses:
+        -----
+        ivt_mask1_onset_known - 
+            Whether onset time is known for each patient. Created in
+            _create_masks_onset_time_known().
+        onset_to_arrival_on_time_ivt_bool -
+            Whether onset to arrival time for each patient is under 
+            the thrombolysis limit. Created in 
+            _sample_onset_to_arrival_time_lognorm().
+        mt_mask1_onset_known - 
+            Whether onset time is known for each patient. Created in
+            _create_masks_onset_time_known(). 
+        onset_to_arrival_on_time_mt_bool -
+            Whether onset to arrival time for each patient is under 
+            the thrombectomy limit. Created in 
+            _sample_onset_to_arrival_time_lognorm().
         """
         mask_ivt = (
             (self.trial['ivt_mask1_onset_known'].data == 1) &
@@ -1477,64 +1523,185 @@ class SSNAP_Pathway:
             (self.trial['onset_to_arrival_on_time_mt_bool'].data == 1)
             )
 
-        self.trial['ivt_mask2_mask1_and_onset_to_arrival_on_time'].data = mask_ivt
-        self.trial['mt_mask2_mask1_and_onset_to_arrival_on_time'].data = mask_mt
+        self.trial[
+            'ivt_mask2_mask1_and_onset_to_arrival_on_time'].data = mask_ivt
+        self.trial[
+            'mt_mask2_mask1_and_onset_to_arrival_on_time'].data = mask_mt
 
+        
     def _create_masks_arrival_to_scan_on_time(self):
         """
         Mask 3: Is scan within x hours of arrival?
+                
+        Creates:
+        --------
+        ivt_mask3_mask2_and_arrival_to_scan_on_time -
+            Mask of whether the arrival to scan time is below the
+            thrombolysis limit and whether mask 2 is True 
+            for each patient.
+        mt_mask3_mask2_and_arrival_to_scan_on_time -
+            Mask of whether the arrival to scan time is below the
+            thrombectomy limit and whether mask 2 is True 
+            for each patient.
         
+        Uses:
+        -----
+        ivt_mask2_mask1_and_onset_to_arrival_on_time - 
+            IVT mask 2. Created in
+            _create_masks_onset_to_arrival_on_time().
+        arrival_to_scan_on_time_ivt_bool -
+            Whether arrival to scan time for each patient is under 
+            the thrombolysis limit. Created in 
+            _sample_arrival_to_scan_time_lognorm().
+        mt_mask2_mask1_and_onset_to_arrival_on_time - 
+            MT mask 2. Created in
+            _create_masks_onset_to_arrival_on_time(). 
+        arrival_to_scan_on_time_mt_bool -
+            Whether arrival to scan time for each patient is under 
+            the thrombectomy limit. Created in 
+            _sample_arrival_to_scan_time_lognorm().
         """
         mask_ivt = (
-            (self.trial['ivt_mask2_mask1_and_onset_to_arrival_on_time'].data == 1) &
+            (self.trial[
+                'ivt_mask2_mask1_and_onset_to_arrival_on_time'].data == 1) &
             (self.trial['arrival_to_scan_on_time_ivt_bool'].data == 1)
             )
         mask_mt = (
-            (self.trial['mt_mask2_mask1_and_onset_to_arrival_on_time'].data == 1) &
+            (self.trial[
+                'mt_mask2_mask1_and_onset_to_arrival_on_time'].data == 1) &
             (self.trial['arrival_to_scan_on_time_mt_bool'].data == 1)
             )
 
-        self.trial['ivt_mask3_mask2_and_arrival_to_scan_on_time'].data = mask_ivt
-        self.trial['mt_mask3_mask2_and_arrival_to_scan_on_time'].data = mask_mt
+        self.trial[
+            'ivt_mask3_mask2_and_arrival_to_scan_on_time'].data = mask_ivt
+        self.trial[
+            'mt_mask3_mask2_and_arrival_to_scan_on_time'].data = mask_mt
 
+        
     def _create_masks_onset_to_scan_on_time(self):
         """
         Mask 4: Is scan within x hours of onset?
+                
+        Creates:
+        --------
+        ivt_mask4_mask3_and_onset_to_scan_on_time -
+            Mask of whether the onset to scan time is below the
+            thrombolysis limit and whether mask 3 is True 
+            for each patient.
+        mt_mask4_mask3_and_onset_to_scan_on_time -
+            Mask of whether the onset to scan time is below the
+            thrombectomy limit and whether mask 3 is True 
+            for each patient.
         
+        Uses:
+        -----
+        ivt_mask3_mask2_and_arrival_to_scan_on_time - 
+            IVT mask 3. Created in
+            _create_masks_arrival_to_scan_on_time().
+        onset_to_scan_on_time_ivt_bool -
+            Whether arrival to scan time for each patient is under 
+            the thrombolysis limit. Created in 
+            _calculate_onset_to_scan_time().
+        mt_mask3_mask2_and_arrival_to_scan_on_time - 
+            MT mask 3. Created in
+            _create_masks_arrival_to_scan_on_time(). 
+        onset_to_scan_on_time_mt_bool -
+            Whether arrival to scan time for each patient is under 
+            the thrombectomy limit. Created in 
+            _calculate_onset_to_scan_time().        
         """
         mask_ivt = (
-            (self.trial['ivt_mask3_mask2_and_arrival_to_scan_on_time'].data == 1) &
-            (self.trial['onset_to_arrival_on_time_ivt_bool'].data == 1)
+            (self.trial[
+                'ivt_mask3_mask2_and_arrival_to_scan_on_time'].data == 1) &
+            (self.trial['onset_to_scan_on_time_ivt_bool'].data == 1)
             )
         mask_mt = (
-            (self.trial['mt_mask3_mask2_and_arrival_to_scan_on_time'].data == 1) &
-            (self.trial['onset_to_arrival_on_time_mt_bool'].data == 1)
+            (self.trial[
+                'mt_mask3_mask2_and_arrival_to_scan_on_time'].data == 1) &
+            (self.trial['onset_to_scan_on_time_mt_bool'].data == 1)
             )
 
-        self.trial['ivt_mask4_mask3_and_onset_to_scan_on_time'].data = mask_ivt
+        self.trial[
+            'ivt_mask4_mask3_and_onset_to_scan_on_time'].data = mask_ivt
         self.trial['mt_mask4_mask3_and_onset_to_scan_on_time'].data = mask_mt
 
+        
     def _create_masks_enough_time_to_treat(self):
         """
         Mask 5: Is there enough time left for threatment?
         
+        Creates:
+        --------
+        ivt_mask5_mask4_and_enough_time_to_treat -
+            Mask of whether there is enough time before the 
+            thrombolysis limit and whether mask 4 is True 
+            for each patient.
+        mt_mask5_mask4_and_enough_time_to_treat -
+            Mask of whether there is enough time before the 
+            thrombectomy limit and whether mask 4 is True 
+            for each patient.
+        
+        Uses:
+        -----
+        ivt_mask4_mask3_and_onset_to_scan_on_time - 
+            IVT mask 4. Created in
+            _create_masks_onset_to_scan_on_time().
+        enough_time_for_ivt_bool -
+            Whether there is enough time left before the thrombolysis
+            limit. Created in 
+            _calculate_time_left_for_ivt_after_scan().
+        mt_mask4_mask3_and_onset_to_scan_on_time - 
+            MT mask 4. Created in
+            _create_masks_onset_to_scan_on_time(). 
+        enough_time_for_mt_bool -
+            Whether arrival to scan time for each patient is under 
+            the thrombectomy limit. Created in 
+            _calculate_time_left_for_mt_after_scan().
         """
         mask_ivt = (
-            (self.trial['ivt_mask4_mask3_and_onset_to_scan_on_time'].data == 1) &
+            (self.trial[
+                'ivt_mask4_mask3_and_onset_to_scan_on_time'].data == 1) &
             (self.trial['enough_time_for_ivt_bool'].data == 1)
             )
         mask_mt = (
-            (self.trial['mt_mask4_mask3_and_onset_to_scan_on_time'].data == 1) &
+            (self.trial[
+                'mt_mask4_mask3_and_onset_to_scan_on_time'].data == 1) &
             (self.trial['enough_time_for_mt_bool'].data == 1)
             )
 
         self.trial['ivt_mask5_mask4_and_enough_time_to_treat'].data = mask_ivt
         self.trial['mt_mask5_mask4_and_enough_time_to_treat'].data = mask_mt
 
+        
     def _create_masks_treatment_given(self):
         """
         Mask 6: Was treatment given?
+                
+        Creates:
+        --------
+        ivt_mask6_mask5_and_treated -
+            Mask of whether each patient received thrombolysis
+            and whether mask 5 is True for each patient.
+        mt_mask6_mask5_and_treated -
+            Mask of whether each patient received thrombectomy
+            and whether mask 5 is True for each patient.
         
+        Uses:
+        -----
+        ivt_mask5_mask4_and_enough_time_to_treat - 
+            IVT mask 5. Created in
+            _create_masks_enough_time_to_treat().
+        ivt_chosen_bool -
+            Whether there is enough time left before the thrombolysis
+            limit. Created in 
+            _generate_whether_ivt_chosen_binomial().
+        mt_mask5_mask4_and_enough_time_to_treat - 
+            MT mask 5. Created in
+            _create_masks_enough_time_to_treat(). 
+        mt_chosen_bool -
+            Whether arrival to scan time for each patient is under 
+            the thrombectomy limit. Created in 
+            _generate_whether_mt_chosen_binomial().
         """
         mask_ivt = (
             (self.trial['ivt_mask5_mask4_and_enough_time_to_treat'].data == 1) &
