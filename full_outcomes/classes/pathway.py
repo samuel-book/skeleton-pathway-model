@@ -7,33 +7,93 @@ class SSNAP_Pathway:
     """
     Model of stroke pathway.
 
-    Each scenario mimics 100 years of a stroke pathway. Patient times through
-    the pathway are sampled from distributions passed to the model using NumPy.
-
-    Array columns:
-     0: Patient aged 80+
-     1: Allowable onset to needle time (may depend on age)
-     2: Onset time known (boolean)
-     3: Onset to arrival is less than 4 hours (boolean)
-     4: Onset known and onset to arrival is less than 4 hours (boolean)
-     5: Onset to arrival minutes
-     6: Arrival to scan is less than 4 hours
-     7: Arrival to scan minutes
-     8: Minutes left to thrombolyse
-     9: Onset time known and time left to thrombolyse
-    10: Proportion ischaemic stroke (if they are filtered at this stage)
-    11: Assign eligible for thrombolysis (for those scanned within 4 hrs of onset)
-    12: Thrombolysis planned (scanned within time and eligible)
-    13: Scan to needle time
-    14: Clip onset to thrombolysis time to maximum allowed onset-to-thrombolysis
-
-
-
-    WRITE A NEW HUGE DOCSTRING PLEASE WITH EVERYTHING THIS NOW DOES #############################################################
-
-
-    IVT = intra-veneous thrombolysis
-    MT = mechanical thrombectomy
+    This model simulates the passage through the emergency stroke 
+    pathway for a cohort of patients. Each patient spends different
+    amounts of time in each step of the pathway and may or may not
+    meet various conditions for treatment. The calculations
+    for all patients are performed simultaneously.
+    
+    ----- Method summary -----
+    Patient times through the pathway are sampled from distributions 
+    passed to the model using NumPy. Then any Yes or No choice is 
+    guided by target hospital performance data, so for example if the
+    target proportion of known onset times is 40%, we randomly pick 
+    40% of these patients to have known onset times.
+    
+    The goal is to find out whether each patient passed through the
+    pathway on time for treatment and then whether they are selected
+    for treatment. There are separate time limits for thrombolysis
+    and thrombectomy.
+    
+    The resulting arrays are then sanity checked against more 
+    proportions from the target hospital performance data.
+    A series of masks are created here with conditions matching those
+    used to extract the hospital performance data, so that these masks
+    can be used to calculate the equivalent metric for comparison of 
+    the generated and target data.
+    
+    ----- Results -----
+    The main results are, for each patient:
+    + Arrival time
+      + Onset to arrival time                                 (minutes)
+      + Is time below the thrombolysis limit?              (True/False)
+      + Is time below the thrombectomy limit?              (True/False)
+      + Is onset time known?                               (True/False)
+    + Scan time
+      + Arrival to scan time                                  (minutes)
+      + Is time below the thrombolysis limit?              (True/False)
+      + Is time below the thrombectomy limit?              (True/False)
+      + Onset to scan time                                    (minutes) 
+      + Is time below the thrombolysis limit?              (True/False)
+      + Is time below the thrombectomy limit?              (True/False)
+    + Thrombolysis decision
+      + How much time is left for thrombolysis after scan?    (minutes)
+      + Is there enough time left for thrombolysis?        (True/False)
+      + Scan to needle time                                   (minutes)
+      + Is time below the thrombolysis limit?              (True/False)
+      + Is time below the thrombectomy limit?              (True/False)
+      + Onset to needle time                                  (minutes) 
+      + Is thrombolysis given?                             (True/False)
+    + Thrombolysis masks
+      1. Onset time is known.                              (True/False)
+      2. Mask 1 and onset to arrival time below limit.     (True/False)
+      3. Mask 2 and arrival to scan time below limit.      (True/False)
+      4. Mask 3 and onset to scan time below limit.        (True/False)
+      5. Mask 4 and enough time left for thrombolysis.     (True/False)
+      6. Mask 5 and the patient received thrombolysis.     (True/False)
+    + Thrombectomy decision
+      + How much time is left for thrombectomy after scan?    (minutes)
+      + Is there enough time left for thrombectomy?        (True/False)
+      + Scan to puncture time                                 (minutes)
+      + Is time below the thrombolysis limit?              (True/False)
+      + Is time below the thrombectomy limit?              (True/False)
+      + Onset to puncture time                                (minutes)
+      + Is thrombectomy given?                             (True/False)
+    + Thrombectomy masks
+      1. Onset time is known.                              (True/False)
+      2. Mask 1 and onset to arrival time below limit.     (True/False)
+      3. Mask 2 and arrival to scan time below limit.      (True/False)
+      4. Mask 3 and onset to scan time below limit.        (True/False)
+      5. Mask 4 and enough time left for thrombectomy.     (True/False)
+      6. Mask 5 and the patient received thrombectomy.     (True/False)
+    + Stroke type code                         (0=Other, 1=nLVO, 2=LVO)
+    
+    ----- Code layout -----
+    Each of the above results is stored as a numpy array containing one
+    value for each patient. Any Patient X appears at the same position 
+    in all arrays, so the arrays can be seen as columns of a 2D table 
+    of patient data. The main run_trial() function outputs all of the
+    arrays as a single pandas DataFrame that can be saved to csv. The
+    individual arrays are stored in the self.trial dictionary 
+    attribute.
+    
+    These acronyms are used to prevent enormous variable names:
+    + IVT = intra-veneous thrombolysis
+    + MT = mechanical thrombectomy
+    + LVO = large-vessel occlusion
+    + nLVO = non-large-vessel occlusion
+    
+    "Needle" refers to thrombolysis and "puncture" to thrombectomy.
     """
     # Settings that are common across all stroke teams and all trials:
 
@@ -114,6 +174,7 @@ class SSNAP_Pathway:
         # From hospital data:
         self.patients_per_run = int(hospital_data['admissions'])
 
+        # ####################################################################################### this is the worst. Can this be shortened?
         # Patient population:
         self.target_data_dict = dict(
             proportion_onset_known = \
@@ -177,22 +238,18 @@ class SSNAP_Pathway:
         self.trial = dict(
             #                                                                #
             # Initial steps                                                  #
-            onset_to_arrival_mins = (
-                Patient_array(n, ['float'], 0.0, np.inf)),
+            onset_to_arrival_mins = Patient_array(n, ['float'], 0.0, np.inf),
             onset_to_arrival_on_time_ivt_bool = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
             onset_to_arrival_on_time_mt_bool = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
-            onset_time_known_bool = (
-                Patient_array(n, ['int', 'bool'], 0, 1)),
-            arrival_to_scan_mins = (
-                Patient_array(n, ['float'], 0.0, np.inf)),
+            onset_time_known_bool = Patient_array(n, ['int', 'bool'], 0, 1),
+            arrival_to_scan_mins = Patient_array(n, ['float'], 0.0, np.inf),
             arrival_to_scan_on_time_ivt_bool = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
             arrival_to_scan_on_time_mt_bool = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
-            onset_to_scan_mins = (
-                Patient_array(n, ['float'], 0.0, np.inf)),
+            onset_to_scan_mins = Patient_array(n, ['float'], 0.0, np.inf),
             #                                                                #
             # IVT (thrombolysis)
             onset_to_scan_on_time_ivt_bool = (
@@ -406,23 +463,26 @@ class SSNAP_Pathway:
 
         # Generate pathway times for all patients.
         # These sets of times are all independent of each other.
-        self._generate_onset_to_arrival_time_lognorm()
+        self._sample_onset_to_arrival_time_lognorm()
         # Assign randomly whether the onset time is known
         # in the same proportion as the real performance data.
         self._generate_onset_time_known_binomial()
         # Where onset time is not known, the arrays relating to onset
         # to arrival times are updated. Times are set to Not A Number
         # and boolean "is time below x hours" are set to 0 (=False).
-        self._create_masks_onset_to_arrival_on_time()
         # Other generated times:
-        self._generate_arrival_to_scan_time_lognorm()
-        self._create_masks_arrival_to_scan_on_time()
-        self._generate_scan_to_needle_time_lognorm()
-        self._generate_scan_to_puncture_time_lognorm()
-
-
-        # Calculate more times from the previously-generated times.
+        self._sample_arrival_to_scan_time_lognorm()
+        self._sample_scan_to_needle_time_lognorm()
+        self._sample_scan_to_puncture_time_lognorm()
+        # Combine onset to arrival and arrival to scan times:
         self._calculate_onset_to_scan_time()
+        
+        # Create masks:
+        self._create_masks_onset_time_known()
+        self._create_masks_onset_to_arrival_on_time()
+        self._create_masks_arrival_to_scan_on_time()
+        self._create_masks_onset_to_scan_on_time()
+        
         # Thrombolysis:
         self._calculate_time_left_for_ivt_after_scan()
         self._calculate_and_clip_onset_to_needle_time(clip_limit_mins=(
@@ -435,6 +495,7 @@ class SSNAP_Pathway:
             self.allowed_onset_to_puncture_time_mins +
             self.allowed_overrun_for_slow_scan_to_puncture_mins
             ))
+
         self._create_masks_enough_time_to_treat()
 
         # Check that the generated times are reasonable:
@@ -557,7 +618,7 @@ class SSNAP_Pathway:
         return times_mins
 
 
-    def _generate_onset_to_arrival_time_lognorm(self):
+    def _sample_onset_to_arrival_time_lognorm(self):
         """
         Assign onset to arrival time (natural log normal distribution).
 
@@ -596,7 +657,7 @@ class SSNAP_Pathway:
             (trial_onset_to_arrival_mins <= self.limit_mt_mins)
 
 
-    def _generate_arrival_to_scan_time_lognorm(self):
+    def _sample_arrival_to_scan_time_lognorm(self):
         """
         Assign arrival to scan time (natural log normal distribution).
         
@@ -635,7 +696,7 @@ class SSNAP_Pathway:
             (trial_arrival_to_scan_mins <= self.limit_mt_mins)
 
 
-    def _generate_scan_to_needle_time_lognorm(self):
+    def _sample_scan_to_needle_time_lognorm(self):
         """
         Assign scan to needle time (natural log normal distribution).
         
@@ -671,7 +732,7 @@ class SSNAP_Pathway:
             (trial_scan_to_needle_mins <= self.limit_mt_mins)
 
 
-    def _generate_scan_to_puncture_time_lognorm(self):
+    def _sample_scan_to_puncture_time_lognorm(self):
         """
         Assign scan to puncture time (natural log normal distribution).
         
@@ -714,7 +775,7 @@ class SSNAP_Pathway:
         """
         Assign onset time known and update existing onset arrays. ##################################### should this go *before* generating the onset to arrival times?
 
-        Run this after _generate_onset_to_arrival_time_lognorm()
+        Run this after _sample_onset_to_arrival_time_lognorm()
         to ensure that the following attributes exist:
         - onset_to_arrival_mins
         - onset_to_arrival_on_time_ivt_bool
@@ -756,7 +817,6 @@ class SSNAP_Pathway:
         self.trial['onset_to_arrival_on_time_ivt_bool'].data[inds] = 0
         self.trial['onset_to_arrival_on_time_mt_bool'].data[inds] = 0
 
-        self._create_masks_onset_time_known()
 
     def _generate_whether_ivt_chosen_binomial(self):
         """
@@ -922,11 +982,11 @@ class SSNAP_Pathway:
         onset_to_arrival_mins -
             Onset to arrival times in minutes from the log-normal
             distribution. One time per patient. Created in
-            _generate_onset_to_arrival_time_lognorm().
+            _sample_onset_to_arrival_time_lognorm().
         arrival_to_scan_mins -
             Arrival to scan times in minutes from the log-normal
             distribution. One time per patient. Created in
-            _generate_arrival_to_scan_time_lognorm().
+            _sample_arrival_to_scan_time_lognorm().
         """
         # Calculate onset to scan by summing onset to arrival and
         # arrival to scan:
@@ -942,7 +1002,6 @@ class SSNAP_Pathway:
         self.trial['onset_to_scan_on_time_mt_bool'].data = \
             (self.trial['onset_to_scan_mins'].data <= self.limit_mt_mins)
 
-        self._create_masks_onset_to_scan_on_time()
 
     def _calculate_time_left_for_ivt_after_scan(
             self,
@@ -1050,7 +1109,7 @@ class SSNAP_Pathway:
         scan_to_needle_mins -
             Scan to needle times in minutes from the log-normal
             distribution. One time per patient. Created in
-            _generate_scan_to_needle_time_lognorm().
+            _sample_scan_to_needle_time_lognorm().
         """
         onset_to_needle_mins = (
             self.trial['onset_to_scan_mins'].data +
@@ -1088,7 +1147,7 @@ class SSNAP_Pathway:
         scan_to_puncture_mins -
             Scan to puncture times in minutes from the log-normal
             distribution. One time per patient. Created in
-            _generate_scan_to_puncture_time_lognorm().
+            _sample_scan_to_puncture_time_lognorm().
         """
         onset_to_puncture_mins = (
             self.trial['onset_to_scan_mins'].data +
@@ -1144,6 +1203,9 @@ class SSNAP_Pathway:
 
 
 
+    # ##################################
+    # ######## STROKE TYPE CODE ########
+    # ##################################
 
     def _assign_stroke_type_code(self):
         """
@@ -1254,7 +1316,6 @@ class SSNAP_Pathway:
         # ... to give this value:
         n_nlvo_and_thrombolysis = np.minimum(n1, n2)
         
-        # So this many nLVO and LVO patients are in Group C:
         groupC = dict(
             total = len(inds_groupC),
             nlvo = n_nlvo_and_thrombolysis,
@@ -1291,11 +1352,11 @@ class SSNAP_Pathway:
         # Step 3: everyone else is in Group D.
         groupD = dict(
             total = (total['total'] - 
-                   (groupA['total'] + groupB['total'] + groupC['total'])),
+                    (groupA['total'] + groupB['total'] + groupC['total'])),
             lvo = (total['lvo'] - 
-                   (groupA['lvo'] + groupB['lvo'] + groupC['lvo'])),
+                  (groupA['lvo'] + groupB['lvo'] + groupC['lvo'])),
             nlvo = (total['nlvo'] - 
-                    (groupA['nlvo'] + groupB['nlvo'] + groupC['nlvo'])),
+                   (groupA['nlvo'] + groupB['nlvo'] + groupC['nlvo'])),
             other = (total['other'] - 
                     (groupA['other'] + groupB['other'] + groupC['other']))
             )
@@ -1392,7 +1453,10 @@ class SSNAP_Pathway:
 
     """
     def _create_masks_onset_time_known(self):
-        """Mask 1: Is onset time known?"""
+        """
+        Mask 1: Is onset time known?
+        
+        """
         # Same mask for thrombolysis and thrombolysis.
         mask = np.copy(self.trial['onset_time_known_bool'].data)
 
@@ -1400,7 +1464,10 @@ class SSNAP_Pathway:
         self.trial['mt_mask1_onset_known'].data = mask
 
     def _create_masks_onset_to_arrival_on_time(self):
-        """Mask 2: Is arrival within x hours?"""
+        """
+        Mask 2: Is arrival within x hours?
+        
+        """
         mask_ivt = (
             (self.trial['ivt_mask1_onset_known'].data == 1) &
             (self.trial['onset_to_arrival_on_time_ivt_bool'].data == 1)
@@ -1414,7 +1481,10 @@ class SSNAP_Pathway:
         self.trial['mt_mask2_mask1_and_onset_to_arrival_on_time'].data = mask_mt
 
     def _create_masks_arrival_to_scan_on_time(self):
-        """Mask 3: Is scan within x hours of arrival?"""
+        """
+        Mask 3: Is scan within x hours of arrival?
+        
+        """
         mask_ivt = (
             (self.trial['ivt_mask2_mask1_and_onset_to_arrival_on_time'].data == 1) &
             (self.trial['arrival_to_scan_on_time_ivt_bool'].data == 1)
@@ -1428,7 +1498,10 @@ class SSNAP_Pathway:
         self.trial['mt_mask3_mask2_and_arrival_to_scan_on_time'].data = mask_mt
 
     def _create_masks_onset_to_scan_on_time(self):
-        """Step 4: Is scan within x hours of onset?"""
+        """
+        Mask 4: Is scan within x hours of onset?
+        
+        """
         mask_ivt = (
             (self.trial['ivt_mask3_mask2_and_arrival_to_scan_on_time'].data == 1) &
             (self.trial['onset_to_arrival_on_time_ivt_bool'].data == 1)
@@ -1442,7 +1515,10 @@ class SSNAP_Pathway:
         self.trial['mt_mask4_mask3_and_onset_to_scan_on_time'].data = mask_mt
 
     def _create_masks_enough_time_to_treat(self):
-        """Mask 5: Is there enough time left for threatment?"""
+        """
+        Mask 5: Is there enough time left for threatment?
+        
+        """
         mask_ivt = (
             (self.trial['ivt_mask4_mask3_and_onset_to_scan_on_time'].data == 1) &
             (self.trial['enough_time_for_ivt_bool'].data == 1)
@@ -1456,7 +1532,10 @@ class SSNAP_Pathway:
         self.trial['mt_mask5_mask4_and_enough_time_to_treat'].data = mask_mt
 
     def _create_masks_treatment_given(self):
-        """Mask 6: Was treatment given?"""
+        """
+        Mask 6: Was treatment given?
+        
+        """
         mask_ivt = (
             (self.trial['ivt_mask5_mask4_and_enough_time_to_treat'].data == 1) &
             (self.trial['ivt_chosen_bool'].data == 1)
@@ -1471,7 +1550,9 @@ class SSNAP_Pathway:
 
 
     def _gather_results_in_dataframe(self):
-        
+        """
+        write me ##################################################################################################
+        """
         # Combine entries in 
         
         
