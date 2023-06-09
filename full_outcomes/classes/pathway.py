@@ -35,10 +35,10 @@ class SSNAP_Pathway:
     ----- Results -----
     The main results are, for each patient:
     + Arrival time
+      + Is onset time known?                               (True/False)
       + Onset to arrival time                                 (minutes)
       + Is time below the thrombolysis limit?              (True/False)
       + Is time below the thrombectomy limit?              (True/False)
-      + Is onset time known?                               (True/False)
     + Scan time
       + Arrival to scan time                                  (minutes)
       + Is time below the thrombolysis limit?              (True/False)
@@ -175,6 +175,7 @@ class SSNAP_Pathway:
         self.patients_per_run = int(hospital_data['admissions'])
 
         # ####################################################################################### this is the worst. Can this be shortened?
+        # Change this to directly inputting a dictionary instead. Nicer for repr() too.
         # Patient population:
         self.target_data_dict = dict(
             proportion_onset_known = \
@@ -236,8 +237,8 @@ class SSNAP_Pathway:
         #    number_of_patients, valid_dtypes_list, valid_min, valid_max)
         n = self.patients_per_run  # Defined to shorten the following.
         self.trial = dict(
-            #                                                                #
-            # Initial steps                                                  #
+            #
+            # Initial steps
             onset_to_arrival_mins = Patient_array(n, ['float'], 0.0, np.inf),
             onset_to_arrival_on_time_ivt_bool = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
@@ -250,7 +251,7 @@ class SSNAP_Pathway:
             arrival_to_scan_on_time_mt_bool = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
             onset_to_scan_mins = Patient_array(n, ['float'], 0.0, np.inf),
-            #                                                                #
+            #
             # IVT (thrombolysis)
             onset_to_scan_on_time_ivt_bool = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
@@ -268,8 +269,8 @@ class SSNAP_Pathway:
                 Patient_array(n, ['float'], 0.0, np.inf)),
             ivt_chosen_bool = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
-            #                                                                #
-            # Masks of IVT pathway to match input hospital performance       #
+            #
+            # Masks of IVT pathway to match input hospital performance
             ivt_mask1_onset_known = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
             ivt_mask2_mask1_and_onset_to_arrival_on_time = (
@@ -282,7 +283,7 @@ class SSNAP_Pathway:
                 Patient_array(n, ['int', 'bool'], 0, 1)), 
             ivt_mask6_mask5_and_treated = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
-            #                                                                #
+            #
             # MT (thrombectomy)
             onset_to_scan_on_time_mt_bool = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
@@ -300,8 +301,8 @@ class SSNAP_Pathway:
                 Patient_array(n, ['float'], 0.0, np.inf)),
             mt_chosen_bool = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
-            #                                                                #
-            # Masks of MT pathway to match input hospital performance        #
+            #
+            # Masks of MT pathway to match input hospital performance
             mt_mask1_onset_known = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
             mt_mask2_mask1_and_onset_to_arrival_on_time = (
@@ -314,74 +315,47 @@ class SSNAP_Pathway:
                 Patient_array(n, ['int', 'bool'], 0, 1)),
             mt_mask6_mask5_and_treated = (
                 Patient_array(n, ['int', 'bool'], 0, 1)),
-            #                                                                #
-            # Use the treatment decisions to assign stroke type              #
+            #
+            # Use the treatment decisions to assign stroke type
             stroke_type_code = (
                 Patient_array(n, ['int'], 0, 2)),
         )
 
     def __str__(self):
-        """Prints info when print(Instance) is called.""" ############################################## update for this class
+        """Prints info when print(Instance) is called."""
         print_str = ''.join([
-            f'There are {self.number_of_patients} patients ',
-            'and the base mRS distributions are: ',
+            f'For hospital {self.hospital_name}, the target data is: '
         ])
         for (key, val) in zip(
-                self.mrs_distribution_probs.keys(),
-                self.mrs_distribution_probs.values()
+                self.target_data_dict.keys(),
+                self.target_data_dict.values()
                 ):
             print_str += '\n'
-            print_str += f'{key} '
+            print_str += f'  {key:50s} '
             print_str += f'{repr(val)}'
         
         print_str += '\n\n'
         print_str += ''.join([
-            'Some useful attributes are: \n',
-            '- each_patient_stroke_type_code\n',
-            '- each_patient_onset_to_needle_mins\n',
-            '- each_patient_received_ivt_bool\n',
-            '- each_patient_onset_to_puncture_mins\n',
-            '- each_patient_received_mt_bool\n',
-            '- each_patient_ivt_no_effect_bool\n',
-            '- each_patient_mt_no_effect_bool\n',
-            'The first five of these can be set manually to match a ',
-            'chosen patient array.\n'
-            ])
-        # #################################################################################### change this to expect a data dictionary with the same keywords as the output from hte pathway.
-        print_str += ''.join([
-            '\n',
-            'The easiest way to create the results dictionaries is:\n',
-            '  results, combo_results = ',
-            'clinical_outcome.calculate_outcomes()'
+            'The main useful attribute is self.trial, ',
+            'a dictionary of the results of the trial.'
             ])
         print_str += ''.join([
             '\n',
-            'To see the current patient population statistics, run:\n',
-            '  clinical_outcome.print_patient_population_stats()\n',
-            'The data printed can then be accessed in these attributes:\n',
-            '- nLVO_dict\n',
-            '- LVO_dict\n',
+            'The easiest way to create the results is:\n',
+            '  patient_array.run_trial()'
             ])
         return print_str
     
 
     def __repr__(self):
         """Prints how to reproduce this instance of the class."""
-        # This string prints without actual newlines, just the "\n"
-        # characters, but it's the best way I can think of to display ################################### update for this class
-        # the input dataframe in full.
         return ''.join([
-            'Clinical_outcome(',
-            f'mrs_dists=DATAFRAME*, '
-            f'number_of_patients={self.number_of_patients})',
-            '        \n\n        ',
-            'The dataframe DATAFRAME* is created with: \n',
-            f'  index: {self.mrs_dists_input.index}, \n',
-            f'  columns: {self.mrs_dists_input.columns}, \n',
-            f'  values: {repr(self.mrs_dists_input.values)}'
+            'SSNAP_Pathway(',
+            f'hospital_name={self.hospital_name}, '
+            f'hospital_data={self.target_data_dict})'
             ])    
     #
-    def run_trial(self, patients_per_run=0):
+    def run_trial(self, patients_per_run: int=0):
         """
         Create the pathway details for each patient in the trial.
         
@@ -460,17 +434,13 @@ class SSNAP_Pathway:
         else:
             # Don't update anything.
             pass
-
-        # Generate pathway times for all patients.
-        # These sets of times are all independent of each other.
-        self._sample_onset_to_arrival_time_lognorm()
+        
         # Assign randomly whether the onset time is known
         # in the same proportion as the real performance data.
         self._generate_onset_time_known_binomial()
-        # Where onset time is not known, the arrays relating to onset
-        # to arrival times are updated. Times are set to Not A Number
-        # and boolean "is time below x hours" are set to 0 (=False).
-        # Other generated times:
+        # Generate pathway times for all patients.
+        # These sets of times are all independent of each other.
+        self._sample_onset_to_arrival_time_lognorm()
         self._sample_arrival_to_scan_time_lognorm()
         self._sample_scan_to_needle_time_lognorm()
         self._sample_scan_to_puncture_time_lognorm()
@@ -521,13 +491,13 @@ class SSNAP_Pathway:
 
     def _generate_lognorm_times(
             self,
-            proportion_on_time,
-            number_of_patients,
-            mu_mt=None,
-            sigma_mt=None,
-            mu_ivt=None,
-            sigma_ivt=None,
-            label_for_printing=''
+            proportion_on_time: float,
+            number_of_patients: int,
+            mu_mt: float=None,
+            sigma_mt: float=None,
+            mu_ivt: float=None,
+            sigma_ivt: float=None,
+            label_for_printing: str=''
             ):
         """
         Generate times from a lognorm distribution and sanity check.
@@ -562,18 +532,18 @@ class SSNAP_Pathway:
                     
         ----- Inputs: -----
         proportion_on_time - float. The target proportion of 
-                                  patients with times below the limit. 
-        number_of_patients      - int. Number of times to generate.
-        mu_mt                   - float or None. Lognorm mu for times 
-                                  below the thrombectomy limit.
-        sigma_mt                - float or None. Lognorm sigma for 
-                                  times below the thrombectomy limit.
-        mu_ivt                  - float or None. Lognorm mu for times 
-                                  below the thrombolysis limit.
-        sigma_ivt               - float or None. Lognorm sigma for 
-                                  times below the thrombolysis limit.
-        label_for_printing      - str. Identifier for the warning
-                                  string printed if sanity checks fail.
+                             patients with times below the limit. 
+        number_of_patients - int. Number of times to generate.
+        mu_mt              - float or None. Lognorm mu for times 
+                             below the thrombectomy limit.
+        sigma_mt           - float or None. Lognorm sigma for 
+                             times below the thrombectomy limit.
+        mu_ivt             - float or None. Lognorm mu for times 
+                             below the thrombolysis limit.
+        sigma_ivt          - float or None. Lognorm sigma for 
+                             times below the thrombolysis limit.
+        label_for_printing - str. Identifier for the warning
+                             string printed if sanity checks fail.
                                   
         ----- Returns: -----
         times_mins - np.array. The sanity-checked generated times.
@@ -581,6 +551,8 @@ class SSNAP_Pathway:
         # Select which mu and sigma to use:
         mu = mu_mt if mu_mt is not None else mu_ivt
         sigma = sigma_mt if sigma_mt is not None else sigma_ivt
+        time_limit_mins = (self.limit_mt_mins if mu_mt is not None 
+                           else self.limit_ivt_mins)
         
         # Generate times:
         times_mins = np.random.lognormal(
@@ -596,7 +568,7 @@ class SSNAP_Pathway:
         times_mins = self._fudge_patients_after_time_limit(
             times_mins,
             proportion_on_time,
-            number_of_patients
+            time_limit_mins
             )
 
         # Sanity checks:
@@ -633,18 +605,37 @@ class SSNAP_Pathway:
         onset_to_arrival_on_time_mt_bool -
             True or False for each patient arriving under
             the time limit for thrombectomy.
+            
+        Uses:
+        -----
+        onset_time_known_bool -
+            Whether each patient has a known onset time. Created in
+            _generate_onset_time_known_binomial().
         """
-        # Invent new times for the patient subgroup:
-        trial_onset_to_arrival_mins = self._generate_lognorm_times(
+        # Initial array with all zero times:
+        trial_onset_to_arrival_mins = np.zeros(self.patients_per_run)
+        
+        # Update onset-to-arrival times so that when onset time is 
+        # unknown, the values are set to NaN (time).
+        inds = (self.trial['onset_time_known_bool'].data == 0)
+        trial_onset_to_arrival_mins[inds] = np.NaN
+        
+        # Find which patients have known onset times:
+        inds_valid_times = np.where(trial_onset_to_arrival_mins == 0)[0]
+        # Invent new times for this known-onset-time subgroup:
+        valid_onset_to_arrival_mins = self._generate_lognorm_times(
             self.target_data_dict['proportion_known_arrival_on_time_mt'],
-            self.patients_per_run,
+            len(inds_valid_times),
             self.target_data_dict['lognorm_mu_onset_arrival_mt_mins'],
             self.target_data_dict['lognorm_sigma_onset_arrival_mt_mins'],
             self.target_data_dict['lognorm_mu_onset_arrival_ivt_mins'],
             self.target_data_dict['lognorm_sigma_onset_arrival_ivt_mins'],
             'onset to arrival'
             )
-
+        # Place these times into the full patient list:
+        trial_onset_to_arrival_mins[inds_valid_times] = \
+            valid_onset_to_arrival_mins
+        
         # Store the generated times:
         self.trial['onset_to_arrival_mins'].data = \
             trial_onset_to_arrival_mins
@@ -678,9 +669,11 @@ class SSNAP_Pathway:
             self.target_data_dict['proportion_arrival_to_scan_on_time_mt'],
             self.patients_per_run,
             self.target_data_dict['lognorm_mu_arrival_scan_arrival_mt_mins'],
-            self.target_data_dict['lognorm_sigma_arrival_scan_arrival_mt_mins'],
+            self.target_data_dict[
+                'lognorm_sigma_arrival_scan_arrival_mt_mins'],
             self.target_data_dict['lognorm_mu_arrival_scan_arrival_ivt_mins'],
-            self.target_data_dict['lognorm_sigma_arrival_scan_arrival_ivt_mins'],
+            self.target_data_dict[
+                'lognorm_sigma_arrival_scan_arrival_ivt_mins'],
             'arrival to scan'
             )
 
@@ -773,33 +766,12 @@ class SSNAP_Pathway:
     # #######################################
     def _generate_onset_time_known_binomial(self):
         """
-        Assign onset time known and update existing onset arrays. ##################################### should this go *before* generating the onset to arrival times?
-
-        Run this after _sample_onset_to_arrival_time_lognorm()
-        to ensure that the following attributes exist:
-        - onset_to_arrival_mins
-        - onset_to_arrival_on_time_ivt_bool
-        - onset_to_arrival_on_time_mt_bool
-        If they exist, the affected times are set to Not A Number and
-        the boolean for whether arrival is on time is set to False.
-
+        Assign whether onset time is known for each patient.
 
         Creates:
         --------
         onset_time_known_bool -
             True or False for each patient having a known onset time.
-        
-        Updates:
-        --------
-        onset_to_arrival_mins -
-            Onset to arrival times in minutes from the log-normal
-            distribution. One time per patient.
-        onset_to_arrival_on_time_ivt_bool -
-            True or False for each patient arriving under
-            the time limit for thrombolysis.
-        onset_to_arrival_on_time_mt_bool -
-            True or False for each patient arriving under
-            the time limit for thrombectomy.
         """
         self.trial['onset_time_known_bool'] = \
             np.random.binomial(
@@ -807,15 +779,8 @@ class SSNAP_Pathway:
                 self.target_data_dict['proportion_onset_known'],  
                                             # ^ Probability of success
                 self.patients_per_run       # Number of samples drawn
-                ) == 1
+                ) == 1                      # Convert int to bool
 
-        # Update onset-to-arrival times and relevant boolean
-        # arrays so that when onset time is unknown, the values
-        # are set to NaN (time) or 0 (boolean).
-        inds = (self.trial['onset_time_known_bool'].data == 0)
-        self.trial['onset_to_arrival_mins'].data[inds] = np.NaN
-        self.trial['onset_to_arrival_on_time_ivt_bool'].data[inds] = 0
-        self.trial['onset_to_arrival_on_time_mt_bool'].data[inds] = 0
 
 
     def _generate_whether_ivt_chosen_binomial(self):
@@ -1005,7 +970,7 @@ class SSNAP_Pathway:
 
     def _calculate_time_left_for_ivt_after_scan(
             self,
-            minutes_left=15
+            minutes_left: float=15.0
             ):
         """
         Calculate the minutes left to thrombolyse after scan.
@@ -1047,7 +1012,7 @@ class SSNAP_Pathway:
 
     def _calculate_time_left_for_mt_after_scan(
             self,
-            minutes_left=15
+            minutes_left: float=15.0
             ):
         """
         Calculate the minutes left for thrombectomy after scan.
@@ -1089,7 +1054,7 @@ class SSNAP_Pathway:
             )
 
     def _calculate_and_clip_onset_to_needle_time(
-            self, clip_limit_mins=-100.0):
+            self, clip_limit_mins: float=-100.0):
         """
         Calculate onset to needle times from existing data.
         
@@ -1127,7 +1092,7 @@ class SSNAP_Pathway:
 
 
     def _calculate_and_clip_onset_to_puncture_time(
-            self, clip_limit_mins=-100.0):
+            self, clip_limit_mins: float=-100.0):
         """
         Calculate onset to puncture times from existing data.
         
@@ -1202,6 +1167,21 @@ class SSNAP_Pathway:
             self.trial['mt_chosen_bool'].data.mean() * 100
 
 
+    def _gather_results_in_dataframe(self):
+        """
+        Combine all results arrays into a single dataframe.
+        
+        The gathered arrays are all contained in the trial dictionary.
+        """        
+        # The following construction for "data" will work as long as
+        # all arrays in trial have the same length.
+        df = pd.DataFrame(
+            data=np.array(
+                [v.data for v in self.trial.values()], dtype=object).T,
+            columns=list(self.trial.keys())
+            )
+        self.results_dataframe = df
+        
 
     # ##################################
     # ######## STROKE TYPE CODE ########
@@ -1243,7 +1223,7 @@ class SSNAP_Pathway:
            nLVO patients in the same proportion as the whole cohort.
            For example:   B       C          Some LVO patients
                         ░░░░░▒▒▒▒▒▒▒▒▒▒▒     have already been placed
-                        <-LVO-><--nLVO->     into Group ░B░.
+                        <-LVO--><-nLVO->     into Group ░B░.
 
            Calculate how many patients should have nLVO according to
            the target proportion. Set the number of nLVO patients in
@@ -1271,7 +1251,8 @@ class SSNAP_Pathway:
             nlvo = int(
                 round(self.patients_per_run * self.proportion_nlvo, 0))
         )
-        total['other'] = self.patients_per_run - (total['lvo'] + total['nlvo'])
+        total['other'] = (
+            self.patients_per_run - (total['lvo'] + total['nlvo']))
         
         
         # Find which patients are in each group.
@@ -1696,19 +1677,20 @@ class SSNAP_Pathway:
             limit. Created in 
             _generate_whether_ivt_chosen_binomial().
         mt_mask5_mask4_and_enough_time_to_treat - 
-            MT mask 5. Created in
-            _create_masks_enough_time_to_treat(). 
+            MT mask 5. Created in _create_masks_enough_time_to_treat().
         mt_chosen_bool -
             Whether arrival to scan time for each patient is under 
             the thrombectomy limit. Created in 
             _generate_whether_mt_chosen_binomial().
         """
         mask_ivt = (
-            (self.trial['ivt_mask5_mask4_and_enough_time_to_treat'].data == 1) &
+            (self.trial[
+                'ivt_mask5_mask4_and_enough_time_to_treat'].data == 1) &
             (self.trial['ivt_chosen_bool'].data == 1)
             )
         mask_mt = (
-            (self.trial['mt_mask5_mask4_and_enough_time_to_treat'].data == 1) &
+            (self.trial[
+                'mt_mask5_mask4_and_enough_time_to_treat'].data == 1) &
             (self.trial['mt_chosen_bool'].data == 1)
             )
 
@@ -1716,32 +1698,24 @@ class SSNAP_Pathway:
         self.trial['mt_mask6_mask5_and_treated'].data = mask_mt
 
 
-    def _gather_results_in_dataframe(self):
-        """
-        write me ##################################################################################################
-        """
-        # Combine entries in 
-        
-        
-        # The following construction for "data" will work as long as
-        # all arrays in trial have the same length.
-        df = pd.DataFrame(
-            data=np.array([v.data for v in self.trial.values()], dtype=object).T,
-            columns=list(self.trial.keys())
-            )
-        self.results_dataframe = df
-        
-
 
     # #########################
     # ##### SANITY CHECKS #####
     # #########################
-    def _run_sanity_check_on_hospital_data(self, hospital_data):
+    def _run_sanity_check_on_hospital_data(self, hospital_data: dict):
         """
         Sanity check the hospital data.
 
         Check all of the relevant keys exist and that the data is
         of the right dtype.
+        
+        Inputs:
+        -------
+        hospital_data - a dictionary containing the keywords in the 
+                        following "keys" list. Each of the keys points
+                        to an array because the expected hospital_data
+                        format is a single labelled row of a pandas 
+                        DataFrame.
         """
         keys = [
             'admissions',
@@ -1772,9 +1746,12 @@ class SSNAP_Pathway:
 
         success = True
         for k, key in enumerate(keys):
+            # Does this key exist?
             try:
                 value_here = hospital_data[key]
+                # Is this value an array?
                 if type(value_here) in [np.ndarray]:
+                    # Are those values of the expected data type?
                     dtype_here = value_here.dtype
                     expected_dtypes_here = [
                         np.dtype(d) for d in expected_dtypes[k]
@@ -1785,163 +1762,156 @@ class SSNAP_Pathway:
                             f'expected type {expected_dtypes_here}.'
                             ]))
                         success = False
+                    else:
+                        pass  # The data is OK.
+                else:
+                    pass  # Skip the data type check.
             except KeyError:
                 print(f'{key} is missing from the hospital data.')
                 success = False
         if success is False:
             error_str = 'The input hospital data needs fixing.'
             raise ValueError(error_str) from None
-
-
-
+        else:
+            pass  # All of the data is ok.
 
 
     def _fudge_patients_after_time_limit(
             self,
-            onset_to_arrival_mins,
-            proportion_within_8hr,
-            number_of_patients
+            patient_times_mins: float,
+            proportion_within_limit: float,
+            time_limit_mins: float
             ):
         """
         Make sure the proportion of patients with arrival time
         below X hours matches the hospital performance data.
         Set a few patients now to have arrival times above
         X hours.
+        
+        Inputs:
+        -------
+        patient_times_mins      - array. One time per patient.
+        proportion_within_limit - float. How many of those times should
+                                  be under the time limit?
+        time_limit_mins         - float. The time limit we're comparing
+                                  these patient times with.
+                                
+        Returns:
+        --------
+        patient_times_mins - array. The input time array but with some
+                             times changed to be past the limit so that
+                             the proportion within the limit is met.
         """
-        inds_patients_arriving_after_X_hours = np.where(
-            onset_to_arrival_mins > self.limit_mt_mins)
-        n_patients_arriving_after_X_hours = len(
-            inds_patients_arriving_after_X_hours[0])
-
-        expected_patients_arriving_after_X_hours = (
-            number_of_patients -
-            int(proportion_within_8hr *
-                number_of_patients
+        # How many patients are currently arriving after the limit?
+        inds_times_after_limit = np.where(
+            patient_times_mins > time_limit_mins)
+        n_times_after_limit = len(inds_times_after_limit[0])
+        # How many patients should arrive after the limit?
+        expected_times_after_limit = int(
+            len(patient_times_mins) * (1.0 - proportion_within_limit)
+            )
+        # How many extra patients should we alter the values for?
+        n_times_to_fudge = expected_times_after_limit - n_times_after_limit
+        
+        if n_times_to_fudge > 0:
+            # Randomly pick this many patients out of those who are
+            # currently arriving within the limit.
+            inds_times_to_fudge = np.random.choice(
+                np.where(patient_times_mins <= time_limit_mins)[0],
+                size=n_times_to_fudge,
+                replace=False
                 )
-            )
-
-        n_patients_to_fudge = (
-            expected_patients_arriving_after_X_hours -
-            n_patients_arriving_after_X_hours
-            )
-
-        if n_patients_to_fudge > 0:
-            inds_patients_to_fudge = np.random.randint(
-                0,                         # minimum
-                number_of_patients,        # maximum
-                size=n_patients_to_fudge,
-                dtype=int
-            )
-            # Indices that are already above the 8 hour limit:
-            inds_already_above_8hr = np.intersect1d(
-                inds_patients_arriving_after_X_hours, inds_patients_to_fudge)
-            if len(inds_already_above_8hr) > 0:
-                # Change repeat indices to non-repeated values.
-                for ind in inds_already_above_8hr:
-                    new_ind = ind
-                    breaker = 0  # For stopping infinite loops
-                    while new_ind not in inds_patients_to_fudge:
-                        new_ind += 1
-                        if new_ind >= number_of_patients:
-                            new_ind = 0
-                            breaker += 1
-                            if breaker > 1:
-                                raise RecursionError(''.join([
-                                    'Something has gone wrong with ',
-                                    'reassigning onset-to-arrival times.'
-                                    ])) from None
-                    # Add the new index to the fudge list and
-                    # remove the duplicated index.
-                    inds_patients_to_fudge = np.append(
-                        inds_patients_to_fudge, new_ind)
-                    inds_patients_to_fudge = np.delete(
-                        inds_patients_to_fudge,
-                        np.where(inds_patients_to_fudge == ind)
-                        )
-            # Add eight hours to the affected patients.
-            onset_to_arrival_mins[inds_patients_to_fudge] += \
-                self.limit_mt_mins
-        return onset_to_arrival_mins
+            # Set these patients to be beyond the time limit.
+            patient_times_mins[inds_times_to_fudge] = time_limit_mins + 1
+        return patient_times_mins
 
 
 
-    def _sanity_check_generated_times_patient_proportions(self):
+    def _sanity_check_generated_times_patient_proportions(
+            self, leeway: float=0.25):
         """
-        eh?
-        # ########################################################################################## should there be more checks in here? For other generated times?
+        Check if generated proportions match the targets.
         
-                   <-σ--->                                                  
-                ^   __                         
-                |  ╱  ╲_                       
-        Number  | |     ╲_                     
-          of    | |       ╲__                  
-       patients | |          ╲___              
-                |╱               ╲__           
-                +----|--------------->         
-                     μ                                                  
-                        Time                                                  
-                        
-               
+        Compare proportions of patients passing each mask with
+        the target proportions (e.g. from real hospital performance 
+        data).
         
+        Inputs:
+        -------
+        leeway - float. How far away the generated proportion can be
+                 from the target proportion without raising a warning.
+                 Set this to 0.0 for no difference allowed (not 
+                 recommended!) or >1.0 to guarantee no warnings.
         """
+        target_proportions = [
+            'proportion_known_arrival_on_time_',
+            'proportion_arrival_to_scan_on_time_',
+            'proportion_onset_to_scan_on_time_',
+            'proportion_enough_time_to_treat_',
+            'proportion_treated_'
+        ]
+        mask_names = [
+            '_mask1_onset_known',
+            '_mask2_mask1_and_onset_to_arrival_on_time',
+            '_mask3_mask2_and_arrival_to_scan_on_time',
+            '_mask4_mask3_and_onset_to_scan_on_time',
+            '_mask5_mask4_and_enough_time_to_treat',
+            '_mask6_mask5_and_treated'
+        ]
         for i, treatment in enumerate(['ivt', 'mt']):
-            # Create patient proportions from generated (g) data:
+            for j, proportion_name in enumerate(target_proportions):
+                try:
+                    target_proportion = self.target_data_dict[
+                        proportion_name + treatment]
+                    success = True
+                except KeyError:
+                    # This proportion hasn't been given by the user.
+                    success = False
+                    
+                if success is False:
+                    pass  # Don't perform any checks.
+                else:
+                    mask_before = self.trial[treatment + mask_names[j]].data
+                    mask_now = self.trial[treatment + mask_names[j+1]].data
 
-            # Known arrival within x hours:
-            # Yes to Step 2 / Yes to Step 1
-            g_proportion_known_arrival_on_time = (
-                np.sum(self.trial[treatment + '_mask2_mask1_and_onset_to_arrival_on_time'].data) /
-                np.sum(self.trial[treatment + '_mask1_onset_known'].data)
-                if np.sum(self.trial[treatment + '_mask1_onset_known'].data) > 0
-                else np.NaN)
+                    # Create patient proportions from generated (g) data.
+                    # Proportion is Yes to Mask now / Yes to Mask before.
+                    g_proportion = (np.sum(mask_now) / np.sum(mask_before)
+                                    if np.sum(mask_before) > 0 else np.NaN)
 
-            # Scan within x hours of arrival:
-            # Yes to Step 3 / Yes to Step 2
-            g_proportion_arrival_to_scan_on_time = (
-                np.sum(self.trial[treatment + '_mask3_mask2_and_arrival_to_scan_on_time'].data) /
-                np.sum(self.trial[treatment + '_mask2_mask1_and_onset_to_arrival_on_time'].data)
-                if np.sum(self.trial[treatment + '_mask2_mask1_and_onset_to_arrival_on_time'].data) > 0
-                else np.NaN)
+                    # If there's a problem, print this label:
+                    label_to_print = proportion_name.replace('_', ' ')
+                    label_to_print = label_to_print.split('proportion ')[1] 
+                    label_to_print += treatment
 
-            # Scan within x hours of onset:
-            # Yes to Step 4 / Yes to Step 3
-            g_proportion_onset_to_scan_on_time = (
-                np.sum(self.trial[treatment + '_mask4_mask3_and_onset_to_scan_on_time'].data) /
-                np.sum(self.trial[treatment + '_mask3_mask2_and_arrival_to_scan_on_time'].data)
-                if np.sum(self.trial[treatment + '_mask3_mask2_and_arrival_to_scan_on_time'].data) > 0
-                else np.NaN)
-
-            # Compare with patient proportions from real hospital data:
-            self._check_proportion(
-                g_proportion_known_arrival_on_time,
-                self.target_data_dict['proportion_known_arrival_on_time_' + treatment],
-                label=f'known arrival on time for {treatment}',
-                leeway=0.25
-                )
-            self._check_proportion(
-                g_proportion_arrival_to_scan_on_time,
-                self.target_data_dict['proportion_arrival_to_scan_on_time_' + treatment],
-                label=f'arrival to scan on time for {treatment}',
-                leeway=0.25
-                )
-            self._check_proportion(
-                g_proportion_onset_to_scan_on_time,
-                self.target_data_dict['proportion_onset_to_scan_on_time_' + treatment],
-                label=f'onset to scan on time for {treatment}',
-                leeway=0.25
-                )
+                    # Compare with target proportion:
+                    self._check_proportion(
+                        g_proportion,
+                        target_proportion,
+                        label=label_to_print,
+                        leeway=leeway
+                        )
 
 
     def _check_proportion(
             self,
-            prop_current,
-            prop_target,
-            label='',
-            leeway=0.1
+            prop_current: float,
+            prop_target: float,
+            label: str='',
+            leeway: float=0.1
             ):
         """
+        Check whether generated proportion is close to the target.
+        
         If the proportion is more than (leeway*100)% off the target,
         raise a warning message.
+        
+        Inputs:
+        prop_current - float. Calculated proportion between 0.0 and 1.0.
+        prop_target  - float. Target proportion between 0.0 and 1.0.
+        label        - str. Label to print if there's a problem.
+        leeway       - float. How far away the calculated proportion is
+                       allowed to be from the target.
         """
         if ((prop_current > prop_target + leeway) or
             (prop_current < prop_target - leeway)):
@@ -1957,27 +1927,36 @@ class SSNAP_Pathway:
 
     def _check_distribution_statistics(
             self,
-            patient_times,
-            mu_target,
-            sigma_target,
-            label=''
+            patient_times: np.ndarray,
+            mu_target: float,
+            sigma_target: float,
+            label: str=''
             ):
         """
+        Check whether generated times follow target distribution.
+        
         Raise warning if:
         - the new mu is outside the old mu +/- old sigma, or
         - the new sigma is considerably larger than old sigma.
+        
+        Inputs:
+        -------
+        patient_times - np.ndarray. The distribution to check.
+        mu_target     - float. mu for the target distribution.
+        sigma_target  - float. sigma for the target distribution.
+        label         - str. Label to print if there's a problem.
         """
         # Set all zero or negative values to something tiny here
         # to prevent RuntimeWarning about division by zero
         # encountered in log.
         patient_times = np.clip(patient_times, a_min=1e-7, a_max=None)
         
-        # Actual statistics.
-        mu_actual = np.mean(np.log(patient_times))
-        sigma_actual = np.std(np.log(patient_times))
+        # Generated distribution statistics.
+        mu_generated = np.mean(np.log(patient_times))
+        sigma_generated = np.std(np.log(patient_times))
 
         # Check new mu:
-        if abs(mu_target - mu_actual) > sigma_target:
+        if abs(mu_target - mu_generated) > sigma_target:
             print(''.join([
                 f'Warning: the log-normal "{label}" distribution ',
                 'has a mean outside the target mean plus or minus ',
@@ -1987,7 +1966,7 @@ class SSNAP_Pathway:
             pass
 
         # Check new sigma:
-        if sigma_target > 5*sigma_actual:
+        if sigma_target > 5*sigma_generated:
             print(''.join([
                 f'Warning: the log-normal "{label}" distribution ',
                 'has a standard deviation at least five times as large ',
