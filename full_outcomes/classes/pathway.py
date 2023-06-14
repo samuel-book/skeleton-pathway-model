@@ -43,7 +43,7 @@ class SSNAP_Pathway:
       + Arrival to scan time                                  (minutes)
       + Is time below the thrombolysis limit?              (True/False)
       + Is time below the thrombectomy limit?              (True/False)
-      + Onset to scan time                                    (minutes) 
+      + Onset to scan time                                    (minutes)
       + Is time below the thrombolysis limit?              (True/False)
       + Is time below the thrombectomy limit?              (True/False)
     + Thrombolysis decision
@@ -52,7 +52,7 @@ class SSNAP_Pathway:
       + Scan to needle time                                   (minutes)
       + Is time below the thrombolysis limit?              (True/False)
       + Is time below the thrombectomy limit?              (True/False)
-      + Onset to needle time                                  (minutes) 
+      + Onset to needle time                                  (minutes)
       + Is thrombolysis given?                             (True/False)
     + Thrombolysis masks
       1. Onset time is known.                              (True/False)
@@ -94,6 +94,7 @@ class SSNAP_Pathway:
     + nLVO = non-large-vessel occlusion
     
     "Needle" refers to thrombolysis and "puncture" to thrombectomy.
+    "On time" means within the time limit, e.g. 4hr for thrombolysis.
     """
     # Settings that are common across all stroke teams and all trials:
 
@@ -123,7 +124,7 @@ class SSNAP_Pathway:
             hospital_data: pd.DataFrame
             ):
         """
-        Sets up the data required to calculate the patient pathways.
+        Sets up the data required to calculate the patient pathways. # ####################### rewrite this
 
         Inputs:
         -------
@@ -159,6 +160,9 @@ class SSNAP_Pathway:
         - scan to puncture time (thrombectomy)
         mu is the mean and sigma the standard deviation of the
         hospital's performance in these times in log-normal space.
+        
+        Access the data in the trial attribute with this syntax:
+          patient_array.trial['onset_to_arrival_mins'].data
         """
 
         try:
@@ -342,7 +346,9 @@ class SSNAP_Pathway:
         print_str += ''.join([
             '\n',
             'The easiest way to create the results is:\n',
-            '  patient_array.run_trial()'
+            '  patient_array.run_trial()\n',    
+            'Access the data in the trial dictionary with this syntax:\n'
+            '  patient_array.trial[\'onset_to_arrival_mins\'].data'
             ])
         return print_str
     
@@ -355,7 +361,7 @@ class SSNAP_Pathway:
             f'hospital_data={self.target_data_dict})'
             ])    
     #
-    def run_trial(self, patients_per_run: int=0):
+    def run_trial(self, patients_per_run: int=-1):
         """
         Create the pathway details for each patient in the trial.
         
@@ -444,38 +450,38 @@ class SSNAP_Pathway:
         self._sample_arrival_to_scan_time_lognorm()
         self._sample_scan_to_needle_time_lognorm()
         self._sample_scan_to_puncture_time_lognorm()
-        # Combine onset to arrival and arrival to scan times:
-        self._calculate_onset_to_scan_time()
         
-        # Create masks:
+        # Combine these generated times into other measures:
+        self._calculate_onset_to_scan_time()
+        self._calculate_and_clip_onset_to_needle_time(clip_limit_mins=(
+            self.allowed_onset_to_needle_time_mins +
+            self.allowed_overrun_for_slow_scan_to_needle_mins
+            ))
+        self._calculate_and_clip_onset_to_puncture_time(clip_limit_mins=(
+            self.allowed_onset_to_puncture_time_mins +
+            self.allowed_overrun_for_slow_scan_to_puncture_mins
+            ))
+        
+        # Create masks for generated times:
         self._create_masks_onset_time_known()
         self._create_masks_onset_to_arrival_on_time()
         self._create_masks_arrival_to_scan_on_time()
         self._create_masks_onset_to_scan_on_time()
         
-        # Thrombolysis:
+        # Is there enough time left for treatment?
         self._calculate_time_left_for_ivt_after_scan()
-        self._calculate_and_clip_onset_to_needle_time(clip_limit_mins=(
-            self.allowed_onset_to_needle_time_mins +
-            self.allowed_overrun_for_slow_scan_to_needle_mins
-            ))
-        # Thrombectomy:
         self._calculate_time_left_for_mt_after_scan()
-        self._calculate_and_clip_onset_to_puncture_time(clip_limit_mins=(
-            self.allowed_onset_to_puncture_time_mins +
-            self.allowed_overrun_for_slow_scan_to_puncture_mins
-            ))
-
         self._create_masks_enough_time_to_treat()
-
-        # Check that the generated times are reasonable:
-        self._sanity_check_generated_times_patient_proportions()
-
+        
         # Treatment decision
         self._generate_whether_ivt_chosen_binomial()
         self._generate_whether_mt_chosen_binomial()
         self._create_masks_treatment_given()
 
+        # Check that proportion of patients answering "yes" to each
+        # mask matches the target proportions.        
+        self._sanity_check_masked_patient_proportions()
+        
         # Assign which type of stroke it is *after* choosing which
         # treatments are given.
         self._assign_stroke_type_code()
@@ -773,7 +779,7 @@ class SSNAP_Pathway:
         onset_time_known_bool -
             True or False for each patient having a known onset time.
         """
-        self.trial['onset_time_known_bool'] = \
+        self.trial['onset_time_known_bool'].data = \
             np.random.binomial(
                 1,                          # Number of trials
                 self.target_data_dict['proportion_onset_known'],  
@@ -996,7 +1002,7 @@ class SSNAP_Pathway:
             thrombolysis. Created in 
             _create_masks_enough_time_to_treat().
         """
-        self.trial['time_left_for_ivt_after_scan_mins'].data = np.maximum((
+        self.trial['time_left_for_ivt_after_scan_mins'].data = np.maximum(( # ################################### update comments here
             self.allowed_onset_to_needle_time_mins -
             self.trial['onset_to_scan_mins'].data
             ), -0.0)
@@ -1424,13 +1430,16 @@ class SSNAP_Pathway:
     ░░░░░░░░░░░░░░░░░░░░░░░▒▒▒▒▒███████████████████████████████████████
     ▏----------Yes---------▏-No-▏---------------Rejected--------------▕
     ▏                      ▏    ▏                                     ▕
-    ▏Mask 5: Is there enough time left for thrombolysis/thrombectomy? ▕
+    ▏Mask 5: Is there enough time left for thrombolysis/thrombectomy? ▕  # rem ove thus
     ░░░░░░░░░░░░░░░░▒▒▒▒▒▒▒████████████████████████████████████████████
     ▏------Yes------▏--No--▏------------------Rejected----------------▕
     ▏               ▏      ▏                                          ▕
     ▏Mask 6: Did the patient receive thrombolysis/thrombectomy?       ▕
     ░░░░░░░░░░░▒▒▒▒▒███████████████████████████████████████████████████
     ▏----Yes---▏-No-▏---------------------Rejected--------------------▕
+    
+    
+    don't need the enough time left mask, just make sure taht the people given treatment are the ones where there is enough time left. The "yes to mask 4" group is the one that should be getting the thrombolysis rate from the hospital target data.
 
     """
     def _create_masks_onset_time_known(self):
@@ -1827,7 +1836,7 @@ class SSNAP_Pathway:
 
 
 
-    def _sanity_check_generated_times_patient_proportions(
+    def _sanity_check_masked_patient_proportions(
             self, leeway: float=0.25):
         """
         Check if generated proportions match the targets.
