@@ -333,8 +333,13 @@ class SSNAP_Pathway:
           o------o----------o---------o
          ? ? ? ? o-------o
          
-        ----- Method: ----- # ############################################################ update me.
-        1. Generate pathway times. 
+        ----- Method: ----- 
+        1. Generate whether onset time is known.
+           Use the target proportion of known onset time.
+           Randomly select patients to have known onset time so that
+           the proportion known is the same.
+        
+        2. Generate pathway times. 
                   <-σ--->                   
                  ^  ▃                    Use the target mu and sigma to
                  |  █▄                   make a lognorm distribution.
@@ -347,16 +352,9 @@ class SSNAP_Pathway:
                  +--|----------------->  limit for IVT and MT match the
                     μ    Time            target proportions.
            This is used to create:
-           + onset to arrival time
+           + onset to arrival time where known
            + arrival to scan time
-           + scan to needle time (thrombolysis)
-           + scan to puncture time (thrombectomy)
            
-        2. Generate whether onset time is known.
-           Use the target proportion of known onset time.
-           Randomly select patients to have known onset time so that
-           the proportion known is the same.
-        
         3. Generate whether patients receive treatments.
            Use the target proportions of patients receiving
            thrombolysis and thrombectomy given that they meet all of:
@@ -373,11 +371,16 @@ class SSNAP_Pathway:
            thrombectomy and the proportion receiving both treatments
            match the targets.
            
-        4. Assign stroke types.
+        4. Generate treatment times.
+           Similarly to Step 2, create:
+           + scan to needle time (thrombolysis)
+           + scan to puncture time (thrombectomy)
+           
+        5. Assign stroke types.
            n.b. this is not used elsewhere in this class but is useful
                 for future modelling, e.g. in the outcome modelling.
            Use target proportions of patients with each stroke type.
-           Assign nLVO, LVO, and "else" stroke types to the patients
+           Assign nLVO, LVO, and "other" stroke types to the patients
            such that the treatments given make sense. Only patients
            with LVOs may receive thrombectomy, and only patients with
            nLVO or LVO may receive thrombolysis.
