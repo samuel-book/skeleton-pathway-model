@@ -459,7 +459,7 @@ class SSNAP_Pathway:
         self._generate_whether_mt_chosen_binomial()
         self._create_masks_treatment_given()
         
-        # Genereate treatment time
+        # Generate treatment time
         self._sample_scan_to_needle_time_lognorm()
         self._sample_scan_to_puncture_time_lognorm()
         self._calculate_onset_to_needle_time()
@@ -576,26 +576,30 @@ class SSNAP_Pathway:
                 time_limit_mins
                 )
 
-        mu_generated, sigma_generated = (
-            self._calculate_lognorm_parameters(times_mins))
 
         # Sanity checks:
         if mu_mt is not None and sigma_mt is not None:
+            mu_mt_generated, sigma_mt_generated = (
+                self._calculate_lognorm_parameters(
+                    times_mins[times_mins <= self.limit_mt_mins]))
             self._sanity_check_distribution_statistics(
                 times_mins[times_mins <= self.limit_mt_mins],
                 mu_mt,
                 sigma_mt,
-                mu_generated,
-                sigma_generated,
+                mu_mt_generated,
+                sigma_mt_generated,
                 label=label_for_printing + ' on time for thrombectomy'
                 )
         if mu_ivt is not None and sigma_ivt is not None:
+            mu_ivt_generated, sigma_ivt_generated = (
+                self._calculate_lognorm_parameters(
+                    times_mins[times_mins <= self.limit_mt_mins]))
             self._sanity_check_distribution_statistics(
                 times_mins[times_mins <= self.limit_ivt_mins],
                 mu_ivt,
                 sigma_ivt,
-                mu_generated,
-                sigma_generated,
+                mu_ivt_generated,
+                sigma_ivt_generated,
                 label=label_for_printing + ' on time for thrombolysis'
                 )
 
@@ -743,16 +747,19 @@ class SSNAP_Pathway:
                 # If on time for IVT, don't check the times against MT:
                 mu_mt = None
                 sigma_mt = None
+                proportion = self.target_data_dict[
+                    'proportion3_of_mask2_with_arrival_to_scan_on_time_ivt'] 
             else:
                 # Check distribution statistics against MT targets.
                 mu_mt = self.target_data_dict[
                     'lognorm_mu_arrival_scan_arrival_mins_mt']
                 sigma_mt = self.target_data_dict[
                     'lognorm_sigma_arrival_scan_arrival_mins_mt']
+                proportion = self.target_data_dict[
+                    'proportion3_of_mask2_with_arrival_to_scan_on_time_mt']
             # Invent new times for the patient subgroup:
             masked_arrival_to_scan_mins = self._generate_lognorm_times(
-                self.target_data_dict[
-                    'proportion3_of_mask2_with_arrival_to_scan_on_time_mt'],
+                proportion,
                 len(inds),
                 mu_mt,
                 sigma_mt,
@@ -993,23 +1000,32 @@ class SSNAP_Pathway:
         """
         # Find how many patients could receive thrombectomy and
         # where they are in the patient array:
-        inds_eligible_for_mt = np.where(
-            self.trial[
-                'mt_mask5_mask4_and_enough_time_to_treat'].data == 1)[0]
+        inds_eligible_for_mt = np.where(self.trial[
+            'mt_mask5_mask4_and_enough_time_to_treat'].data == 1)[0]
         n_eligible_for_mt = len(inds_eligible_for_mt)
         # Use the known proportion chosen to find the number of
         # patients who will receive thrombectomy:
-        n_mt = int(n_eligible_for_mt * self.target_data_dict[
-            'proportion6_of_mask5_with_treated_mt'])
+        n_mt = np.sum(np.random.binomial(
+            1,                     # Number of trials
+            self.target_data_dict['proportion6_of_mask5_with_treated_mt'],
+                                   # ^ Probability of success
+            n_eligible_for_mt      # Number of samples drawn
+            ))
 
         # Use the proportion of patients who receive thrombolysis and
         # thrombectomy to create two groups now.
         # Number of patients receiving both:
-        n_mt_and_ivt = (
-            int(n_mt * self.target_data_dict['proportion_of_mt_with_ivt'])
-            if np.isnan(
-                self.target_data_dict['proportion_of_mt_with_ivt']) == False
-            else 0)
+        if np.isnan(self.target_data_dict['proportion_of_mt_with_ivt']
+                   ) == True:
+            n_mt_and_ivt = 0
+        else:
+            n_mt_and_ivt = np.minimum(n_mt, np.sum(np.random.binomial(
+                1,    # Number of trials
+                self.target_data_dict['proportion_of_mt_with_ivt'],
+                      # ^ Probability of success
+                n_mt  # Number of samples drawn
+                )))
+
         # Number of patients receiving thrombectomy only:
         n_mt_not_ivt = n_mt - n_mt_and_ivt
 
@@ -1531,7 +1547,7 @@ class SSNAP_Pathway:
     ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▒▒▒▒▒▒▒▒▒▒█████████████████████
     ▏---------------Yes----------------▏----No----▏------Rejected-----▕
     ▏                                  ▏          ▏                   ▕
-    ▏Mask 3: Is arrival to scan wtihin the time limit?                ▕
+    ▏Mask 3: Is arrival to scan within the time limit?                ▕
     ░░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▒▒▒▒▒▒████████████████████████████████
     ▏------------Yes------------▏--No--▏-----------Rejected-----------▕
     ▏                           ▏      ▏                              ▕
@@ -1918,10 +1934,14 @@ class SSNAP_Pathway:
         inds_times_after_limit = np.where(
             patient_times_mins > time_limit_mins)[0]
         n_times_after_limit = len(inds_times_after_limit)
+        
         # How many patients should arrive after the limit?
-        expected_times_after_limit = int(
-            len(patient_times_mins) * (1.0 - proportion_within_limit)
-            )
+        expected_times_after_limit = np.sum(np.random.binomial(
+                1,                                # Number of trials
+                (1.0 - proportion_within_limit),  # Probability of success
+                len(patient_times_mins)           # Number of samples drawn
+                ))
+        
         # How many extra patients should we alter the values for?
         n_times_to_fudge = expected_times_after_limit - n_times_after_limit
         
@@ -2128,25 +2148,33 @@ class SSNAP_Pathway:
 
         --- Result ---
         Creation of self.trial['stroke_type_code'] array.
-        
         """
         # Initially set all patients to "other stroke type":
         trial_stroke_type_code = np.full(self.patients_per_run, 0)
         # Keep track of which patients we've assigned a value to:
         trial_type_assigned_bool = np.zeros(self.patients_per_run, dtype=int)
-
+        
         # Target numbers of patients with each stroke type:
-        total = dict(
-            total = self.patients_per_run,
-            lvo = int(
-                round(self.patients_per_run * self.proportion_lvo, 0)),
-            nlvo = int(
-                round(self.patients_per_run * self.proportion_nlvo, 0))
-        )
-        total['other'] = (
-            self.patients_per_run - (total['lvo'] + total['nlvo']))
-        
-        
+        total = dict()
+        total['total'] = self.patients_per_run
+        total['lvo'] = np.sum(np.random.binomial(
+            1,                    # Number of trials
+            self.proportion_lvo,  # Probability of success
+            total['total']        # Number of samples drawn
+            ))
+        # If this generated number of nLVO patients is too high,
+        # instead set it to the number of patients that do not
+        # have LVOs. Then the number of "other" patients will be zero.
+        total['nlvo'] = np.minimum(
+            np.sum(np.random.binomial(
+                1,                     # Number of trials
+                self.proportion_nlvo,  # Probability of success
+                total['total']         # Number of samples drawn
+                )),
+            total['total'] - total['lvo']
+            )
+        total['other'] = total['total'] - (total['lvo'] + total['nlvo'])
+
         # Find which patients are in each group.
         inds_groupA = np.where(
             (self.trial['mt_chosen_bool'].data == 1) & 
@@ -2175,6 +2203,22 @@ class SSNAP_Pathway:
             other = 0
             )
         
+        # If this is more LVO than we expect, juggle the initial 
+        # numbers.  
+        if groupB['lvo'] + groupA['lvo'] > total['lvo']:
+            # Set the total expected LVO to the new required 
+            # amount and take the same amount out of the nLVO group.
+            diff = groupB['lvo'] + groupA['lvo'] - total['lvo']
+            total['lvo'] += diff
+            total['nlvo'] -= diff
+            if total['nlvo'] < 0:
+                # If that pushes nLVO below zero, instead take the 
+                # difference from the "other" group.
+                total['other'] -= total['nlvo']
+                total['nlvo'] = 0
+            else: pass
+        else: pass
+        
         # Step 2: all thrombolysis patients have nLVO or LVO
         # in the same ratio as the patient proportions if possible.
         # Work out how many people have nLVO and were thrombolysed.
@@ -2184,17 +2228,26 @@ class SSNAP_Pathway:
         # ... and the number of people in groups B and C that 
         # should have nLVO according to the target proportion...
         n2 = int(
-            round(len(inds_groupBC) * (1.0 - self.proportion_lvo), 0)
+            round(len(inds_groupBC) * (total['nlvo']/total['total']), 0)
             )
         # ... to give this value:
         n_nlvo_and_thrombolysis = np.minimum(n1, n2)
         
         groupC = dict(
             total = len(inds_groupC),
-            nlvo = n_nlvo_and_thrombolysis,
             lvo = len(inds_groupC) - n_nlvo_and_thrombolysis,
+            nlvo = n_nlvo_and_thrombolysis,
             other = 0
             )
+        
+        # Sanity check - are there enough LVO patients left?
+        if groupA['lvo'] + groupB['lvo'] + groupC['lvo'] > total['lvo']:
+            lvo_before = groupC['lvo']
+            # Set the number of LVO patients here to be exactly the
+            # number not assigned to either groups A or B.
+            groupC['lvo'] = total['lvo'] - (groupA['lvo'] + groupB['lvo'])
+            # Add the difference back onto the nLVO group.
+            groupC['nlvo'] = groupC['nlvo'] + (lvo_before - groupC['lvo'])
                 
         # Randomly select which patients in Group C have each type.
         # For LVO, select these people... 
@@ -2221,7 +2274,6 @@ class SSNAP_Pathway:
         trial_type_assigned_bool[inds_groupB] += 1
         trial_type_assigned_bool[inds_groupC] += 1
 
-
         # Step 3: everyone else is in Group D.
         groupD = dict(
             total = (total['total'] - 
@@ -2233,6 +2285,8 @@ class SSNAP_Pathway:
             other = (total['other'] - 
                     (groupA['other'] + groupB['other'] + groupC['other']))
             )
+        
+        
         # For each stroke type, randomly select some indices out
         # of those that have not yet been assigned a stroke type.
         # LVO selects from everything in Group D:
