@@ -46,7 +46,7 @@ class Clinical_outcome:
     - proportion_of_this_stroke_type_improved
     - proportion_of_whole_cohort_improved
     - mean_valid_patients_mean_mrs_shift
-    - mean_valid_patients_mean_added_utility'
+    - mean_valid_patients_mean_added_utility
 
     The patient_array_outcomes results dictionary 
     takes the results from the separate results dictionaries and
@@ -120,7 +120,8 @@ class Clinical_outcome:
         clinical_outcome.each_patient_received_ivt_bool = arr2
         clinical_outcome.each_patient_stroke_type_code = arr3
         # Calculate outcomes:
-        results, combo_results = clinical_outcome.calculate_outcomes()
+        results_by_stroke_type, patient_array_outcomes = \
+            clinical_outcome.calculate_outcomes()
     """
 
     def __init__(self, mrs_dists, number_of_patients):
@@ -385,6 +386,8 @@ class Clinical_outcome:
                 ])
             )
             # Don't stop the function, just print the warning.
+            
+            # -------------------------------------------------------------------- might have to change this to just use the LVO dist. assume incorrrect initial diagnosis of nLVO.
 
 
         # ##### Statistics #####
@@ -392,8 +395,8 @@ class Clinical_outcome:
         # for nLVO and LVO patients (nLVO_dict and LVO_dict).
         self.nLVO_dict = self._make_stats_dict(stroke_type_code=1)
         self.LVO_dict = self._make_stats_dict(stroke_type_code=2)
-    
-    
+
+
         # ##### Calculations #####
 
         # Get treatment results
@@ -424,6 +427,8 @@ class Clinical_outcome:
 
         Outputs:
         A dictionary of patient population mRS as described above.
+        
+        # #-------------------------------------------------------------------------------- update me
         """
 
         try:
@@ -452,7 +457,7 @@ class Clinical_outcome:
         
         # Create an x by 7 grid of mRS distributions,
         # one row of 7 mRS values for each of x patients.
-        mask_valid = (self.trial['stroke_type_code'].data == 2)
+        mask_valid = (self.trial['stroke_type_code'].data == 2)  # LVO
         post_stroke_probs = self._calculate_probs_at_treatment_time(
             t0_logodds,
             no_effect_logodds,
@@ -465,13 +470,29 @@ class Clinical_outcome:
             no_effect_probs
             )
 
-        # Find mean mRS and utility values in this dictionary:
+        # Find mean mRS and utility values in these results dictionary.
+        # The results for all patients...
         results_dict = self._create_mrs_utility_dict(
             post_stroke_probs,
             untreated_probs,
             no_effect_probs
             )
-        
+        # ... and for only the patients who were treated:
+        results_treated_dict = self._create_mrs_utility_dict(
+            post_stroke_probs[self.trial['ivt_chosen_bool'].data, :],
+            untreated_probs,
+            no_effect_probs
+            )
+        # Merge the two dictionaries:
+        keys_to_merge = [
+            'proportion_of_this_stroke_type_improved',
+            'proportion_of_whole_cohort_improved',
+            'mean_valid_patients_mean_mrs_shift',
+            'mean_valid_patients_mean_added_utility'
+            ]
+        for key in keys_to_merge:
+            results_dict['treated_population_' + key] = results_treated_dict[key]
+          
         return results_dict
     
     
@@ -487,6 +508,7 @@ class Clinical_outcome:
 
         Outputs:
         A dictionary of patient population mRS as described above.
+        # #-------------------------------------------------------------------------------- update me
         """
         try:
             # Get relevant distributions
@@ -526,13 +548,29 @@ class Clinical_outcome:
             no_effect_probs
             )
 
-        # Find mean mRS and utility values in this dictionary:
+        # Find mean mRS and utility values in these results dictionary.
+        # The results for all patients...
         results_dict = self._create_mrs_utility_dict(
             post_stroke_probs,
             untreated_probs,
             no_effect_probs
             )
-        
+        # ... and for only the patients who were treated:
+        results_treated_dict = self._create_mrs_utility_dict(
+            post_stroke_probs[self.trial['ivt_chosen_bool'].data, :],
+            untreated_probs,
+            no_effect_probs
+            )
+        # Merge the two dictionaries:
+        keys_to_merge = [
+            'proportion_of_this_stroke_type_improved',
+            'proportion_of_whole_cohort_improved',
+            'mean_valid_patients_mean_mrs_shift',
+            'mean_valid_patients_mean_added_utility'
+            ]
+        for key in keys_to_merge:
+            results_dict['treated_population_' + key] = results_treated_dict[key]
+         
         return results_dict
 
     
@@ -544,10 +582,14 @@ class Clinical_outcome:
         3) Shift in mRS between untreated and treated
 
         Inputs:
-        Time to IVT
+        Time to IVT        mask_treated      - 1 by x array. True/False whether the 
+                            patient was treated, one value per
+                            patient.
+        
 
         Outputs:
         A dictionary of patient population mRS as described above.
+        # #-------------------------------------------------------------------------------- update me
         """
     
         try:
@@ -589,13 +631,29 @@ class Clinical_outcome:
             no_effect_probs
             )
         
-        # Find mean mRS and utility values in this dictionary:
+        # Find mean mRS and utility values in these results dictionary.
+        # The results for all patients...
         results_dict = self._create_mrs_utility_dict(
             post_stroke_probs,
             untreated_probs,
             no_effect_probs
             )
-        
+        # ... and for only the patients who were treated:
+        results_treated_dict = self._create_mrs_utility_dict(
+            post_stroke_probs[self.trial['ivt_chosen_bool'].data, :],
+            untreated_probs,
+            no_effect_probs
+            )
+        # Merge the two dictionaries:
+        keys_to_merge = [
+            'proportion_of_this_stroke_type_improved',
+            'proportion_of_whole_cohort_improved',
+            'mean_valid_patients_mean_mrs_shift',
+            'mean_valid_patients_mean_added_utility'
+            ]
+        for key in keys_to_merge:
+            results_dict['treated_population_' + key] = results_treated_dict[key]
+      
         return results_dict
 
 
@@ -642,6 +700,22 @@ class Clinical_outcome:
           - treated after time of no effect
           - not treated
           - not applicable (all values set to NaN)
+        
+        Example:
+        Key:   mRS  ■ 0   ▥ 1   □ 2   ▤ 3   ▦ 4   ▣ 5   ▧ 6
+        
+        Example mRS distributions:
+        Pre-stroke:   ■■■■■■■■▥▥▥▥▥▥▥▥▥▥□□□□□□□□▤▤▤▤▤▤▤▤▦▦▦▦▦▦▦▣▣▣▣▣▣▣▣
+        No effect:    ■■▥▥▥□□□□□□□▤▤▤▤▤▤▤▤▦▦▦▦▦▦▦▦▦▦▣▣▣▣▣▣▣▣▣▣▧▧▧▧▧▧▧▧▧
+        No treatment: ■■■▥▥▥▥□□□□□□□▤▤▤▤▤▤▤▤▤▦▦▦▦▦▦▦▦▦▣▣▣▣▣▣▣▣▣▧▧▧▧▧▧▧▧
+        
+        First five patients' post-stroke mRS distributions:
+        Patient 1:    ■■■■■■■▥▥▥▥▥▥▥▥▥□□□□□□□□▤▤▤▤▤▤▤▤▦▦▦▦▦▦▦▣▣▣▣▣▣▣▣▧▧
+        Patient 2:    ■■■▥▥▥□□□□□□□▤▤▤▤▤▤▤▤▦▦▦▦▦▦▦▦▦▦▣▣▣▣▣▣▣▣▣▧▧▧▧▧▧▧▧▧
+        Patient 3:    ■■■■▥▥▥▥□□□□□□□▤▤▤▤▤▤▤▤▤▤▦▦▦▦▦▦▦▦▦▣▣▣▣▣▣▣▣▣▧▧▧▧▧▧
+        Patient 4:    ■■▥▥▥□□□□□□□▤▤▤▤▤▤▤▤▦▦▦▦▦▦▦▦▦▦▣▣▣▣▣▣▣▣▣▣▧▧▧▧▧▧▧▧▧
+        Patient 5:    ■■▥▥▥□□□□□▤▤▤▤▤▤▤▤▤▤▦▦▦▦▦▦▦▦▦▦▣▣▣▣▣▣▣▣▣▣▧▧▧▧▧▧▧▧▧
+        ...
         
         Inputs:
         -------
@@ -712,7 +786,7 @@ class Clinical_outcome:
             self,
             post_stroke_probs,
             untreated_probs,
-            no_effect_probs,
+            no_effect_probs
             ):
         """
         Create a dictionary of useful mRS dist and utility values.
@@ -729,16 +803,20 @@ class Clinical_outcome:
         no_effect_probs   - 1 by 7 array. mRS dist for
                             the patients who are treated too late
                             for any positive effect.
-        
+
         Returns:
         --------
         results - dict. Contains various mRS and utility values.
         """
+        # Convert cumulative mRS to non-cumulative:
+        untreated_noncum_dist = np.diff(np.append(0.0, untreated_probs))
+        no_effect_noncum_dist = np.diff(np.append(0.0, no_effect_probs))
+        post_stroke_noncum_dist = np.diff(np.concatenate((np.zeros((post_stroke_probs.shape[0], 1)), post_stroke_probs), axis=1))
         
         # Convert mRS distributions to utility-weighted mRS:
-        untreated_util = untreated_probs * self.utility_weights
-        no_effect_util = no_effect_probs * self.utility_weights
-        post_stroke_util = post_stroke_probs * self.utility_weights
+        untreated_util = untreated_noncum_dist * self.utility_weights
+        no_effect_util = no_effect_noncum_dist * self.utility_weights
+        post_stroke_util = post_stroke_noncum_dist * self.utility_weights
         
         # Put results in dictionary
         results = dict()
@@ -747,36 +825,36 @@ class Clinical_outcome:
         results['each_patient_post_stroke_mrs_dist'] = \
             post_stroke_probs                                    # x by 7 grid
         # mean values:
-        results['untreated_mean_mrs'] = np.mean(untreated_probs)     # 1 float
-        results['no_effect_mean_mrs'] = np.mean(no_effect_probs)     # 1 float
+        results['untreated_mean_mrs'] = np.sum(untreated_noncum_dist * np.arange(7))     # 1 float
+        results['no_effect_mean_mrs'] = np.sum(no_effect_noncum_dist * np.arange(7))     # 1 float
         results['each_patient_post_stroke_mean_mrs'] = \
-            np.mean(post_stroke_probs, axis=1)                      # x floats
+            np.sum(post_stroke_noncum_dist * np.arange(7), axis=1)                      # x floats
         # Change from not-treated distribution:
         results['each_patient_mean_mrs_shift'] = (
-            np.mean(post_stroke_probs, axis=1) - np.mean(untreated_probs)
+            np.sum(post_stroke_noncum_dist * np.arange(7), axis=1) - results['untreated_mean_mrs']
             )                                                       # x floats
         
         # Utility-weighted mRS distributions:
         # mean values:
-        results['untreated_mean_utility'] = np.mean(untreated_util)  # 1 float
-        results['no_effect_mean_utility'] = np.mean(no_effect_util)  # 1 float
+        results['untreated_mean_utility'] = np.sum(untreated_util)  # 1 float
+        results['no_effect_mean_utility'] = np.sum(no_effect_util)  # 1 float
         results['each_patient_post_stroke_mean_utility'] = \
-            np.mean(post_stroke_util, axis=1)                       # x floats
+            np.sum(post_stroke_util, axis=1)                       # x floats
         # Change from not-treated distribution:
         results['each_patient_mean_added_utility'] = (
-            np.mean(post_stroke_util, axis=1) - np.mean(untreated_util)
+            np.sum(post_stroke_util, axis=1) - np.sum(untreated_util)
             )                                                       # x floats
         
-        # Get average improved mRS proportion
-        # This isn't the most useful metric now that we've changed
-        # single mRS value to the mRS distribution for each "patient".
-        results['proportion_of_this_stroke_type_improved'] = (
-            np.sum(results['each_patient_mean_mrs_shift'] < 0) /
-            np.sum(np.isnan(results['each_patient_mean_mrs_shift']) == False)
-            )                                                        # 1 float
-        results['proportion_of_whole_cohort_improved'] = (
-            np.sum(results['each_patient_mean_mrs_shift'] < 0) /
-            self.number_of_patients)                                 # 1 float
+#         # Get average improved mRS proportion
+#         # This isn't the most useful metric now that we've changed
+#         # single mRS value to the mRS distribution for each "patient".
+#         results['proportion_of_this_stroke_type_improved'] = (
+#             np.sum(results['each_patient_mean_mrs_shift'] < 0) /
+#             np.sum(np.isnan(results['each_patient_mean_mrs_shift']) == False)
+#             )                                                        # 1 float
+#         results['proportion_of_whole_cohort_improved'] = (
+#             np.sum(results['each_patient_mean_mrs_shift'] < 0) /
+#             self.number_of_patients)                                 # 1 float
         
         # Calculate the overall changes.
         # Use nanmean here because invalid patient data is set to NaN,
@@ -788,6 +866,9 @@ class Clinical_outcome:
             np.nanmean(results['each_patient_mean_added_utility'])   # 1 float
         
         return results
+    
+    # possible change the outcome metric to measure only the people who were treated. --------------------------------- 22/06
+    # for consistency with full population treated in the geographic model.
 
     
     def _merge_results_dicts(
@@ -881,6 +962,11 @@ class Clinical_outcome:
         inds_nlvo_ivt = (
             (self.trial['stroke_type_code'].data == 1)
             )
+        # what abotu patients who don't get treated or are not nLVO or LVO? -------------------------------------------
+        inds_treated = (
+            (self.trial['mt_chosen_bool'].data > 0) |
+            (self.trial['ivt_chosen_bool'].data > 0)
+            )
         inds = [inds_lvo_ivt, inds_lvo_mt, inds_nlvo_ivt]
         
         # The categories have these labels in the combo dictionary:
@@ -889,25 +975,30 @@ class Clinical_outcome:
         
         # Define new empty arrays that will be filled with results
         # from the existing results dictionaries.
-        each_patient_post_stroke_mrs_dist = np.zeros_like(
-            dict_results_by_category
-            [labels[0] + '_each_patient_post_stroke_mrs_dist']
+        each_patient_post_stroke_mrs_dist = np.full(
+            dict_results_by_category[
+                labels[0] + '_each_patient_post_stroke_mrs_dist'].shape,
+            np.NaN
             )
-        each_patient_post_stroke_mean_mrs = np.zeros_like(
-            dict_results_by_category
-            [labels[0] + '_each_patient_post_stroke_mean_mrs']
+        each_patient_post_stroke_mean_mrs = np.full(
+            dict_results_by_category[
+                labels[0] + '_each_patient_post_stroke_mean_mrs'].shape,
+            np.NaN
             )
-        each_patient_mean_mrs_shift = np.zeros_like(
-            dict_results_by_category
-            [labels[0] + '_each_patient_mean_mrs_shift']
+        each_patient_mean_mrs_shift = np.full(
+            dict_results_by_category[
+                labels[0] + '_each_patient_mean_mrs_shift'].shape,
+            np.NaN
             )
-        each_patient_post_stroke_mean_utility = np.zeros_like(
-            dict_results_by_category
-            [labels[0] + '_each_patient_post_stroke_mean_utility']
+        each_patient_post_stroke_mean_utility = np.full(
+            dict_results_by_category[
+                labels[0] + '_each_patient_post_stroke_mean_utility'].shape,
+            np.NaN
             )
-        each_patient_mean_added_utility = np.zeros_like(
-            dict_results_by_category
-            [labels[0] + '_each_patient_mean_added_utility']
+        each_patient_mean_added_utility = np.full(
+            dict_results_by_category[
+                labels[0] + '_each_patient_mean_added_utility'].shape,
+            np.NaN
             )
         
         for i, label in enumerate(labels):
@@ -947,17 +1038,17 @@ class Clinical_outcome:
         
         # Average these results over all patients:
         post_stroke_mean_mrs = \
-            np.mean(each_patient_post_stroke_mean_mrs)               # 1 float
+            np.nanmean(each_patient_post_stroke_mean_mrs)               # 1 float
         mean_mrs_shift = \
-            np.mean(each_patient_mean_mrs_shift)                     # 1 float        
+            np.nanmean(each_patient_mean_mrs_shift)                     # 1 float        
         mean_utility = \
-            np.mean(each_patient_post_stroke_mean_utility)           # 1 float
+            np.nanmean(each_patient_post_stroke_mean_utility)           # 1 float
         mean_added_utility = \
-            np.mean(each_patient_mean_added_utility)                 # 1 float
+            np.nanmean(each_patient_mean_added_utility)                 # 1 float
 
-        # Get proportion of patients who have improved in mRS:
-        proportion_improved = \
-            np.sum(each_patient_mean_mrs_shift < 0)                  # 1 float
+        # # Get proportion of patients who have improved in mRS:
+        # proportion_improved = \
+        #     np.nansum(each_patient_mean_mrs_shift < 0)                  # 1 float
         
         # Create dictionary for combined patient array outcomes:
         patient_array_outcomes = dict(
@@ -975,7 +1066,7 @@ class Clinical_outcome:
             mean_mrs_shift = mean_mrs_shift,                         # 1 float
             mean_utility = mean_utility,                             # 1 float
             mean_added_utility = mean_added_utility,                 # 1 float
-            proportion_improved = proportion_improved                # 1 float
+            # proportion_improved = proportion_improved                # 1 float
             )
         
         # Save to instance:
@@ -1119,9 +1210,10 @@ class Clinical_outcome:
         # in case patient array has been updated since it was made).
         self.nLVO_dict = self._make_stats_dict(stroke_type_code=1)
         self.LVO_dict = self._make_stats_dict(stroke_type_code=2)
+        self.other_stroke_types_dict = self._make_stats_dict(stroke_type_code=0)
 
-        stroke_type_strs = ['nLVO', 'LVO']
-        stats_dicts = [self.nLVO_dict, self.LVO_dict]
+        stroke_type_strs = ['nLVO', 'LVO', 'Other stroke types']
+        stats_dicts = [self.nLVO_dict, self.LVO_dict, self.other_stroke_types_dict]
         for i, stroke_type_str in enumerate(stroke_type_strs):
             stats_dict = stats_dicts[i]
 

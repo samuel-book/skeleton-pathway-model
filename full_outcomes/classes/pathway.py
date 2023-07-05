@@ -126,13 +126,7 @@ class SSNAP_Pathway:
     # #########################
     # Settings that are common across all stroke teams and all trials:
 
-    # Assume these patient proportions:
-    proportion_lvo = 0.35
-    proportion_nlvo = 0.65
-    # If these do not sum to 1, the remainder will be assigned to
-    # all other stroke types combined (e.g. haemorrhage).
-    # They're not subdivided more finely because the outcome model
-    # can only use nLVO and LVO at present (May 2023).
+
 
     # Assume these time limits for the checks at each point
     # (e.g. is onset to arrival time below 4 hours?)
@@ -150,17 +144,25 @@ class SSNAP_Pathway:
     allowed_overrun_for_slow_scan_to_puncture_mins = 15
 
     
-    def __init__(self, hospital_name: str, target_data_dict: dict):
+    def __init__(self, hospital_name: str, target_data_dict: dict, 
+                 stroke_type_code: int or array = 0,
+                 time_for_transfer: float=0.0,
+                # proportion_lvo=0.35,
+                # proportion_nlvo=0.65
+                ):
         """
         Sets up the data required to calculate the patient pathways.
 
         Inputs:
         -------
-        hospital_name    - str. Label for this hospital. Only used for 
-                           printing information about the object.
-        target_data_dict - dictionary or pandas Series. See the function
-                           self._run_sanity_check_on_hospital_data() to
-                           see the expected contents of this dataframe.
+        hospital_name     - str. Label for this hospital. Only used for
+                            printing information about the object.
+        target_data_dict  - dictionary or pandas Series. See
+                            self._run_sanity_check_on_hospital_data() 
+                            for the expected contents of this.
+        time_for_transfer - float. Optional additional time to add on
+                            to onset to puncture time to account for
+                            transfer between hospitals.
 
         Initialises:
         ------------
@@ -216,6 +218,21 @@ class SSNAP_Pathway:
         # From hospital data, this is used often enough to give it its
         # own attribute:
         self.patients_per_run = int(target_data_dict['admissions'])
+        
+        # Store the transfer time between hospitals:
+        self.time_for_transfer = time_for_transfer
+        
+        # Assign stroke type codes:
+        self.stroke_type_code = stroke_type_code
+                
+        
+        # # Assume these patient proportions:
+        # self.proportion_lvo = proportion_lvo  # 0.35
+        # self.proportion_nlvo = proportion_nlvo  # 0.65
+        # # If these do not sum to 1, the remainder will be assigned to
+        # # all other stroke types combined (e.g. haemorrhage).
+        # # They're not subdivided more finely because the outcome model
+        # # can only use nLVO and LVO at present (May 2023).
         
         
     def _create_fresh_trial_dict(self):
@@ -426,6 +443,16 @@ class SSNAP_Pathway:
         if patients_per_run > 0:
             # Overwrite the input value from the hospital data.
             self.patients_per_run = patients_per_run
+        elif patients_per_run == 0:
+            # Don't bother running the trial.
+            # Create a dictionary of trial performance metrics to match
+            # the input hospital performance data dictionary.
+            self._create_trial_performance_dict()
+            # And create a Dataframe of the target vs trial performance:
+            self._create_performance_dataframe()
+            # Place all useful outputs into a pandas Dataframe:
+            results_dataframe = self._gather_results_in_dataframe()
+            return results_dataframe
         else:
             pass  # Don't update anything.
         
@@ -474,9 +501,16 @@ class SSNAP_Pathway:
         # mask matches the target proportions.        
         self._sanity_check_masked_patient_proportions()
         
-        # Assign which type of stroke it is *after* choosing which
-        # treatments are given.
-        self._assign_stroke_type_code()
+        # # # Assign which type of stroke it is *after* choosing which
+        # # # treatments are given.
+        # # self._assign_stroke_type_code()
+        # # TEMPORTATTRRY
+        # trial_stroke_type_code = 2 * np.random.binomial(1, 0.65, self.patients_per_run)
+        if type(self.stroke_type_code) in [float, int]:
+            trial_stroke_type_code = np.full(self.patients_per_run, self.stroke_type_code, dtype=int)
+            self.trial['stroke_type_code'].data = trial_stroke_type_code
+        else:
+            self.trial['stroke_type_code'].data = self.stroke_type_code
 
         # Place all useful outputs into a pandas Dataframe:
         results_dataframe = self._gather_results_in_dataframe()
@@ -940,6 +974,16 @@ class SSNAP_Pathway:
             thrombolysis as above. Created in 
             _create_masks_enough_time_to_treat().
         """
+        prop = self.target_data_dict['proportion6_of_mask5_with_treated_ivt']
+        # Only do this step if the proportion is within the allowed
+        # bounds.
+        if ((prop > 1.0) | (prop < 0.0) | (np.isnan(prop))):
+            # Create an array with everyone set to False...
+            trial_ivt_chosen_bool = np.zeros(self.patients_per_run, dtype=int)
+            # Store this in self (==1 to convert to boolean).
+            self.trial['ivt_chosen_bool'].data = trial_ivt_chosen_bool == 1
+            return 
+        
         # Find the indices of patients that meet thrombolysis criteria:
         inds_scan_on_time = np.where(
             self.trial[
@@ -951,9 +995,7 @@ class SSNAP_Pathway:
         # performance data.
         ivt_chosen_bool = np.random.binomial(
             1,                     # Number of trials
-            self.target_data_dict[
-                'proportion6_of_mask5_with_treated_ivt'],
-                                   # ^ Probability of success
+            prop,                  # ^ Probability of success
             n_scan_on_time         # Number of samples drawn
             )
         # Create an array with everyone set to False...
@@ -998,6 +1040,16 @@ class SSNAP_Pathway:
             True of False for each patient receiving thrombolysis.
             Created in _generate_whether_ivt_chosen_binomial().
         """
+        prop = self.target_data_dict['proportion6_of_mask5_with_treated_mt']
+        # Only do this step if the proportion is within the allowed
+        # bounds.
+        if ((prop > 1.0) | (prop < 0.0) | (np.isnan(prop))):
+            # Create an array with everyone set to False...
+            trial_mt_chosen_bool = np.zeros(self.patients_per_run, dtype=int)
+            # Store this in self (==1 to convert to boolean).
+            self.trial['mt_chosen_bool'].data = trial_mt_chosen_bool == 1
+            return 
+        
         # Find how many patients could receive thrombectomy and
         # where they are in the patient array:
         inds_eligible_for_mt = np.where(self.trial[
@@ -1043,16 +1095,27 @@ class SSNAP_Pathway:
 
         # Randomly select patients from these subgroups to be given
         # thrombectomy.
-        inds_mt_and_ivt = np.random.choice(
-            inds_eligible_for_mt_and_ivt,
-            size=n_mt_and_ivt,
-            replace=False
-            )
-        inds_mt_not_ivt = np.random.choice(
-            inds_eligible_for_mt_not_ivt,
-            size=n_mt_not_ivt,
-            replace=False
-            )
+        if len(inds_eligible_for_mt_and_ivt) > 0:
+            n_mt_and_ivt = np.minimum(n_mt_and_ivt, 
+                                      len(inds_eligible_for_mt_and_ivt))
+            inds_mt_and_ivt = np.random.choice(
+                inds_eligible_for_mt_and_ivt,
+                size=n_mt_and_ivt,
+                replace=False
+                )
+        else:
+            inds_mt_and_ivt = []
+            
+        if len(inds_eligible_for_mt_not_ivt) > 0:
+            n_mt_not_ivt = np.minimum(n_mt_not_ivt, 
+                                      len(inds_eligible_for_mt_not_ivt))
+            inds_mt_not_ivt = np.random.choice(
+                inds_eligible_for_mt_not_ivt,
+                size=n_mt_not_ivt,
+                replace=False
+                )
+        else:
+            inds_mt_not_ivt = []
 
         # Initially create the array with nobody receiving treatment...
         trial_mt_chosen_bool = np.zeros(self.patients_per_run, dtype=int)
@@ -1254,7 +1317,8 @@ class SSNAP_Pathway:
         """
         onset_to_puncture_mins = (
             self.trial['onset_to_scan_mins'].data +
-            self.trial['scan_to_puncture_mins'].data
+            self.trial['scan_to_puncture_mins'].data +
+            self.time_for_transfer  # Optional, set in __init__().
             )
         self.trial['onset_to_puncture_mins'].data = onset_to_puncture_mins
 
@@ -1930,6 +1994,12 @@ class SSNAP_Pathway:
                              times changed to be past the limit so that
                              the proportion within the limit is met.
         """
+        # Only do this step if the proportion is within the allowed
+        # bounds.
+        if ((proportion_within_limit > 1.0) |
+            (proportion_within_limit < 0.0) |
+            (np.isnan(proportion_within_limit))):
+            return patient_times_mins
         # How many patients are currently arriving after the limit?
         inds_times_after_limit = np.where(
             patient_times_mins > time_limit_mins)[0]
@@ -2150,7 +2220,7 @@ class SSNAP_Pathway:
         Creation of self.trial['stroke_type_code'] array.
         """
         # Initially set all patients to "other stroke type":
-        trial_stroke_type_code = np.full(self.patients_per_run, 0)
+        trial_stroke_type_code = np.full(self.patients_per_run, 0, dtype=int)
         # Keep track of which patients we've assigned a value to:
         trial_type_assigned_bool = np.zeros(self.patients_per_run, dtype=int)
         
@@ -2260,7 +2330,7 @@ class SSNAP_Pathway:
         inds_nlvo_groupC = np.array(list(
             set(inds_groupC) -
             set(inds_lvo_groupC)
-            ))
+            ), dtype=int)
         
         # Bookkeeping:
         # Set the chosen patients to their stroke types:
