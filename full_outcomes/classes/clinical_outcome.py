@@ -479,14 +479,14 @@ class Clinical_outcome:
             )
         # ... and for only the patients who were treated:
         results_treated_dict = self._create_mrs_utility_dict(
-            post_stroke_probs[self.trial['ivt_chosen_bool'].data, :],
+            post_stroke_probs[self.trial['ivt_chosen_bool'].data == 1, :],
             untreated_probs,
             no_effect_probs
             )
         # Merge the two dictionaries:
         keys_to_merge = [
-            'proportion_of_this_stroke_type_improved',
-            'proportion_of_whole_cohort_improved',
+            # 'proportion_of_this_stroke_type_improved',
+            # 'proportion_of_whole_cohort_improved',
             'mean_valid_patients_mean_mrs_shift',
             'mean_valid_patients_mean_added_utility'
             ]
@@ -557,14 +557,14 @@ class Clinical_outcome:
             )
         # ... and for only the patients who were treated:
         results_treated_dict = self._create_mrs_utility_dict(
-            post_stroke_probs[self.trial['ivt_chosen_bool'].data, :],
+            post_stroke_probs[self.trial['mt_chosen_bool'].data == 1, :],
             untreated_probs,
             no_effect_probs
             )
         # Merge the two dictionaries:
         keys_to_merge = [
-            'proportion_of_this_stroke_type_improved',
-            'proportion_of_whole_cohort_improved',
+            # 'proportion_of_this_stroke_type_improved',
+            # 'proportion_of_whole_cohort_improved',
             'mean_valid_patients_mean_mrs_shift',
             'mean_valid_patients_mean_added_utility'
             ]
@@ -640,14 +640,14 @@ class Clinical_outcome:
             )
         # ... and for only the patients who were treated:
         results_treated_dict = self._create_mrs_utility_dict(
-            post_stroke_probs[self.trial['ivt_chosen_bool'].data, :],
+            post_stroke_probs[self.trial['ivt_chosen_bool'].data == 1, :],
             untreated_probs,
             no_effect_probs
             )
         # Merge the two dictionaries:
         keys_to_merge = [
-            'proportion_of_this_stroke_type_improved',
-            'proportion_of_whole_cohort_improved',
+            # 'proportion_of_this_stroke_type_improved',
+            # 'proportion_of_whole_cohort_improved',
             'mean_valid_patients_mean_mrs_shift',
             'mean_valid_patients_mean_added_utility'
             ]
