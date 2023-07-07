@@ -429,6 +429,7 @@ class Clinical_outcome:
         A dictionary of patient population mRS as described above.
         
         # #-------------------------------------------------------------------------------- update me
+        # should we be excluding patients who also receive MT here?
         """
 
         try:
@@ -963,6 +964,7 @@ class Clinical_outcome:
             (self.trial['stroke_type_code'].data == 1)
             )
         # what abotu patients who don't get treated or are not nLVO or LVO? -------------------------------------------
+        # that seems to be accounted for in the post_stroke_mRS creation distribution big array function.
         inds_treated = (
             (self.trial['mt_chosen_bool'].data > 0) |
             (self.trial['ivt_chosen_bool'].data > 0)
