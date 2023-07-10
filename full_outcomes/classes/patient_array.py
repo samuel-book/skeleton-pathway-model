@@ -21,6 +21,8 @@ class Patient_array:
       )
     And then set data using e.g.:
       patient_array.data = np.full(10, 1, dtype=int)
+      
+    # ########################################################### to do - allow "int" classes to be input as float if conversion possible
     """
     def __init__(
             self,
