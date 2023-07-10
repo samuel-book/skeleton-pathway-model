@@ -1391,11 +1391,11 @@ class SSNAP_Pathway:
         trial_performance_dict['admissions'] = self.patients_per_run
         
         # Calculate treatment rates across the whole cohort:
-        ivt_rate, mt_rate, mt_with_ivt_rate = self._calculate_treatment_rates()
-        trial_performance_dict['proportion_of_all_with_ivt'] = ivt_rate
-        trial_performance_dict['proportion_of_all_with_mt'] = mt_rate
+        self._calculate_treatment_rates()
+        trial_performance_dict['proportion_of_all_with_ivt'] = self.ivt_rate
+        trial_performance_dict['proportion_of_all_with_mt'] = self.mt_rate
         trial_performance_dict[
-            'proportion_of_mt_with_ivt'] = mt_with_ivt_rate
+            'proportion_of_mt_with_ivt'] = self.mt_with_ivt_rate
         
         proportion_dict = self._calculate_trial_proportions()
         # Transfer the proportion dict contents into the trial dict:
@@ -1451,13 +1451,13 @@ class SSNAP_Pathway:
         
         Creates:
         --------
-        ivt_rate_percent - 
+        ivt_rate - 
             Float. The proportion of the whole cohort that received
             thrombolysis.
-        mt_rate_percent - 
+        mt_rate - 
             Float. The proportion of the whole cohort that received
             thrombectomy.
-        mt_with_ivt_rate_percent - 
+        mt_with_ivt_rate - 
             Float. The proportion of "patients that received 
             thrombectomy" that also received thrombolysis.
         
@@ -1470,19 +1470,17 @@ class SSNAP_Pathway:
             True of False for each patient receiving thrombectomy.
             Created in _generate_whether_mt_chosen_binomial().
         """
-        ivt_rate = self.trial['ivt_chosen_bool'].data.mean()
-        mt_rate = self.trial['mt_chosen_bool'].data.mean()
+        self.ivt_rate = self.trial['ivt_chosen_bool'].data.mean()
+        self.mt_rate = self.trial['mt_chosen_bool'].data.mean()
         
         n_mt = len(np.where(self.trial['mt_chosen_bool'].data == 1)[0])
         n_mt_with_ivt = len(np.where(
             (self.trial['mt_chosen_bool'].data == 1) &
             (self.trial['ivt_chosen_bool'].data == 1)
             )[0])
-        mt_with_ivt_rate = ((n_mt_with_ivt / n_mt)
+        self.mt_with_ivt_rate = ((n_mt_with_ivt / n_mt)
                             if n_mt > 0 else np.NaN)
-        
-        return ivt_rate, mt_rate, mt_with_ivt_rate
-    
+
     
     def _calculate_trial_proportions(self):
         """
