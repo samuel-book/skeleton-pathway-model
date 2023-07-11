@@ -323,7 +323,37 @@ class SSNAP_Pathway:
         )
         
         # Also create a new blank dictionary of trial performance metrics:
-        self.trial_performance_dict = dict()
+        self.trial_performance_dict = {
+            'stroke_team': self.hospital_name,
+            'admissions': self.patients_per_run,
+            'proportion_of_all_with_ivt': np.NaN,
+            'proportion_of_all_with_mt': np.NaN,
+            'proportion_of_mt_with_ivt': np.NaN,
+            'proportion1_of_all_with_onset_known_ivt':  np.NaN,
+            'proportion2_of_mask1_with_onset_to_arrival_on_time_ivt': np.NaN,
+            'proportion3_of_mask2_with_arrival_to_scan_on_time_ivt': np.NaN,
+            'proportion4_of_mask3_with_onset_to_scan_on_time_ivt': np.NaN,
+            'proportion5_of_mask4_with_enough_time_to_treat_ivt': np.NaN,
+            'proportion6_of_mask5_with_treated_ivt': np.NaN,
+            'proportion1_of_all_with_onset_known_mt': np.NaN,
+            'proportion2_of_mask1_with_onset_to_arrival_on_time_mt': np.NaN,
+            'proportion3_of_mask2_with_arrival_to_scan_on_time_mt': np.NaN,
+            'proportion4_of_mask3_with_onset_to_scan_on_time_mt': np.NaN,
+            'proportion5_of_mask4_with_enough_time_to_treat_mt': np.NaN,
+            'proportion6_of_mask5_with_treated_mt': np.NaN,
+            'lognorm_mu_onset_arrival_mins_ivt': np.NaN,
+            'lognorm_sigma_onset_arrival_mins_ivt': np.NaN,
+            'lognorm_mu_arrival_scan_arrival_mins_ivt': np.NaN,
+            'lognorm_sigma_arrival_scan_arrival_mins_ivt': np.NaN,
+            'lognorm_mu_scan_needle_mins_ivt': np.NaN,
+            'lognorm_sigma_scan_needle_mins_ivt': np.NaN,
+            'lognorm_mu_onset_arrival_mins_mt': np.NaN,
+            'lognorm_sigma_onset_arrival_mins_mt': np.NaN,
+            'lognorm_mu_arrival_scan_arrival_mins_mt': np.NaN,
+            'lognorm_sigma_arrival_scan_arrival_mins_mt': np.NaN,
+            'lognorm_mu_scan_puncture_mins_mt': np.NaN,
+            'lognorm_sigma_scan_puncture_mins_mt': np.NaN
+            }
 
 
     def __str__(self):
@@ -440,6 +470,11 @@ class SSNAP_Pathway:
         The useful patient array data is also available in the 
         self.trial attribute, which is a dictionary.
         """
+        
+        # The main results will go in the "trial" dictionary.
+        # Each result is an array with one value per patient.
+        self._create_fresh_trial_dict()
+        
         if patients_per_run > 0:
             # Overwrite the input value from the hospital data.
             self.patients_per_run = patients_per_run
@@ -456,9 +491,6 @@ class SSNAP_Pathway:
         else:
             pass  # Don't update anything.
         
-        # The main results will go in the "trial" dictionary.
-        # Each result is an array with one value per patient.
-        self._create_fresh_trial_dict()
         
         # Assign randomly whether the onset time is known
         # in the same proportion as the real performance data.
@@ -627,7 +659,7 @@ class SSNAP_Pathway:
         if mu_ivt is not None and sigma_ivt is not None:
             mu_ivt_generated, sigma_ivt_generated = (
                 self._calculate_lognorm_parameters(
-                    times_mins[times_mins <= self.limit_mt_mins]))
+                    times_mins[times_mins <= self.limit_ivt_mins]))
             self._sanity_check_distribution_statistics(
                 times_mins[times_mins <= self.limit_ivt_mins],
                 mu_ivt,
@@ -648,6 +680,8 @@ class SSNAP_Pathway:
         -------
         patient_times - np.ndarray. The distribution to check.
         """
+        if len(patient_times) < 1:
+            return np.NaN, np.NaN
         # Set all zero or negative values to 1 minute here
         # to prevent RuntimeWarning about division by zero
         # encountered in log. Choosing 1 minute instead of <1 minute
@@ -803,7 +837,7 @@ class SSNAP_Pathway:
                     'lognorm_sigma_arrival_scan_arrival_mins_ivt'],
                 'arrival to scan'
                 )
-            # Update those patients' times in the array:            
+            # Update those patients' times in the array:
             trial_arrival_to_scan_mins[inds] = masked_arrival_to_scan_mins
 
         # Store the generated times:
@@ -906,7 +940,7 @@ class SSNAP_Pathway:
 
         # Patients who answer False to the mask are given Not A Number
         # instead of a time:
-        trial_scan_to_puncture_mins[np.where(mask == 0)] = np.NaN
+        trial_scan_to_puncture_mins[np.where(mask == 0)[0]] = np.NaN
         # Patients who answer True are at these locations in the array:
         inds = np.where(mask == 1)[0]
         # Invent new times for the patient subgroup:
@@ -1166,9 +1200,9 @@ class SSNAP_Pathway:
         # Create boolean arrays for whether each patient's time is
         # below the limit.
         self.trial['onset_to_scan_on_time_ivt_bool'].data = (
-            self.trial['onset_to_scan_mins'].data <= self.limit_ivt_mins)
+            self.trial['onset_to_scan_mins'].data <= self.limit_ivt_mins) == 1
         self.trial['onset_to_scan_on_time_mt_bool'].data = (
-            self.trial['onset_to_scan_mins'].data <= self.limit_mt_mins)
+            self.trial['onset_to_scan_mins'].data <= self.limit_mt_mins) == 1
 
 
     def _calculate_time_left_for_ivt_after_scan(self,
@@ -1213,7 +1247,7 @@ class SSNAP_Pathway:
             self.trial['ivt_mask4_mask3_and_onset_to_scan_on_time'].data *
             (self.trial['time_left_for_ivt_after_scan_mins'].data
                 >= minutes_left)
-            )
+            ) == 1
 
     def _calculate_time_left_for_mt_after_scan(self,
                                                minutes_left: float=15.0):
@@ -1258,7 +1292,7 @@ class SSNAP_Pathway:
             self.trial['mt_mask4_mask3_and_onset_to_scan_on_time'].data *
             (self.trial['time_left_for_mt_after_scan_mins'].data
                 >= minutes_left)
-            )
+            ) == 1
 
     def _calculate_onset_to_needle_time(self):
         """
@@ -1470,16 +1504,24 @@ class SSNAP_Pathway:
             True of False for each patient receiving thrombectomy.
             Created in _generate_whether_mt_chosen_binomial().
         """
-        self.ivt_rate = self.trial['ivt_chosen_bool'].data.mean()
-        self.mt_rate = self.trial['mt_chosen_bool'].data.mean()
-        
-        n_mt = len(np.where(self.trial['mt_chosen_bool'].data == 1)[0])
-        n_mt_with_ivt = len(np.where(
-            (self.trial['mt_chosen_bool'].data == 1) &
-            (self.trial['ivt_chosen_bool'].data == 1)
-            )[0])
-        self.mt_with_ivt_rate = ((n_mt_with_ivt / n_mt)
-                            if n_mt > 0 else np.NaN)
+        if len(self.trial['ivt_chosen_bool'].data) == 0:
+            # This condition is met when the number of patients is
+            # zero or otherwise this function is run before the 
+            # treatments are assigned.
+            self.ivt_rate = np.NaN
+            self.mt_rate = np.NaN
+            self.mt_with_ivt_rate = np.NaN
+        else:
+            self.ivt_rate = self.trial['ivt_chosen_bool'].data.mean()
+            self.mt_rate = self.trial['mt_chosen_bool'].data.mean()
+
+            n_mt = len(np.where(self.trial['mt_chosen_bool'].data == 1)[0])
+            n_mt_with_ivt = len(np.where(
+                (self.trial['mt_chosen_bool'].data == 1) &
+                (self.trial['ivt_chosen_bool'].data == 1)
+                )[0])
+            self.mt_with_ivt_rate = ((n_mt_with_ivt / n_mt)
+                                if n_mt > 0 else np.NaN)
 
     
     def _calculate_trial_proportions(self):
@@ -2042,6 +2084,15 @@ class SSNAP_Pathway:
                  Set this to 0.0 for no difference allowed (not 
                  recommended!) or >1.0 to guarantee no warnings.
         """
+        # Only bother with these checks if there are enough patients
+        # in the array.
+        if self.patients_per_run <= 30:
+            return
+        elif np.all(self.trial['stroke_type_code'].data == 0):
+            # All patients are "other" stroke type so we don't care
+            # so much about the occlusion pathway.
+            return
+        
         target_proportions = [
             'proportion1_of_all_with_onset_known_',
             'proportion2_of_mask1_with_onset_to_arrival_on_time_',
@@ -2105,8 +2156,8 @@ class SSNAP_Pathway:
             print(''.join([
                 f'The proportion of "{label}" is ',
                 f'over {leeway*100}% out from the target value. '
-                f'Target: {prop_target}, ',
-                f'current: {prop_current}.'
+                f'Target: {prop_target:.5f}, ',
+                f'current: {prop_current:.5f}.'
                 ]))
         else:
             pass
@@ -2138,8 +2189,10 @@ class SSNAP_Pathway:
         label           - str. Label to print if there's a problem.
         """
         # Only bother with these checks if there are enough patients
-        # in the array.
+        # in the array and the sigma is not zero.
         if len(patient_times) <= 30:
+            return
+        elif sigma_target < 1e-5:
             return
         
         # Check generated mu:

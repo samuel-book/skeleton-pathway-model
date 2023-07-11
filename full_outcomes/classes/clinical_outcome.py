@@ -377,15 +377,23 @@ class Clinical_outcome:
             (self.trial['mt_chosen_bool'].data > 0)
             ).nonzero()[0])
         if number_of_patients_with_nLVO_and_MT > 0:
-            print(''.join([
-                f'There are {number_of_patients_with_nLVO_and_MT} ',
-                'patients with nLVOs and treated with MT, ',
-                'but these patients will not ',
-                'be used in the calculations because there are no mRS ',
-                'distributions for this case. ',
-                ])
-            )
-            # Don't stop the function, just print the warning.
+        #     print(''.join([
+        #         f'There are {number_of_patients_with_nLVO_and_MT} ',
+        #         'patients with nLVOs and treated with MT, ',
+        #         'but these patients will not ',
+        #         'be used in the calculations because there are no mRS ',
+        #         'distributions for this case. ',
+        #         ])
+        #     )
+        #     # Don't stop the function, just print the warning.
+            # Change the stroke type to LVO.
+            inds_nLVO_and_MT = np.where((
+                (self.trial['stroke_type_code'].data == 1) &
+                (self.trial['mt_chosen_bool'].data > 0)
+                ))[0]
+            new_stroke_types = self.trial['stroke_type_code'].data
+            new_stroke_types[inds_nLVO_and_MT] = 2
+            self.trial['stroke_type_code'].data = new_stroke_types
             
             # -------------------------------------------------------------------- might have to change this to just use the LVO dist. assume incorrrect initial diagnosis of nLVO.
 
@@ -861,10 +869,12 @@ class Clinical_outcome:
         # Use nanmean here because invalid patient data is set to NaN,
         # e.g. patients who have nLVO when we're calculating 
         # results for patients with LVOs.
-        results['mean_valid_patients_mean_mrs_shift'] = \
+        results['mean_valid_patients_mean_mrs_shift'] = (
             np.nanmean(results['each_patient_mean_mrs_shift'])       # 1 float
-        results['mean_valid_patients_mean_added_utility'] = \
+            if len(np.where(np.isnan(results['each_patient_mean_mrs_shift']) == False)[0]) > 0 else np.NaN)
+        results['mean_valid_patients_mean_added_utility'] = (
             np.nanmean(results['each_patient_mean_added_utility'])   # 1 float
+            if len(np.where(np.isnan(results['each_patient_mean_added_utility']) == False)[0]) > 0 else np.NaN)
         
         return results
     
